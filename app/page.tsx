@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-type Institution={id:string;name:string;manager_name:string|null;manager_phone:string|null;manager_notifications_enabled:boolean;portal_token:string}
+type Institution={id:string;name:string;manager_name:string|null;manager_phone:string|null;manager_notifications_enabled:boolean;portal_token:string|null}
 type Program={id:string;name:string;starts_on:string;ends_on:string;week_count:number;status:string;institution:{id:string;name:string}|null;instructor:{id:string;name:string}|null}
 type Student={id:string;name:string;grade:number;student_number:string|null;program:{id:string;name:string;institution:{id:string;name:string}|null}|null;guardian:{id:string;name:string|null;phone:string;language:string}|null}
 
@@ -85,7 +85,7 @@ export default function Home(){
         <section className="panel">
           <div className="panelhead"><h2>운영 현황</h2><div className="tabs"><button className={tab==='institutions'?'active':''} onClick={()=>setTab('institutions')}>기관 {institutions.length}</button><button className={tab==='programs'?'active':''} onClick={()=>setTab('programs')}>프로그램 {programs.length}</button><button className={tab==='students'?'active':''} onClick={()=>setTab('students')}>학생 {students.length}</button></div></div>
           <div className="tablewrap">
-            {tab==='institutions'&&<table className="table"><thead><tr><th>기관</th><th>담당자</th><th>연락처</th><th>알림</th><th>기관 링크</th></tr></thead><tbody>{institutions.map(x=><tr key={x.id}><td><b>{x.name}</b></td><td>{x.manager_name||'-'}</td><td>{x.manager_phone||'-'}</td><td><span className="status">{x.manager_notifications_enabled?'수신':'미수신'}</span></td><td><button className="secondary" onClick={()=>copyPortal(x.portal_token)}>링크 복사</button></td></tr>)}</tbody></table>}
+            {tab==='institutions'&&<table className="table"><thead><tr><th>기관</th><th>담당자</th><th>연락처</th><th>알림</th><th>기관 링크</th></tr></thead><tbody>{institutions.map(x=><tr key={x.id}><td><b>{x.name}</b></td><td>{x.manager_name||'-'}</td><td>{x.manager_phone||'-'}</td><td><span className="status">{x.manager_notifications_enabled?'수신':'미수신'}</span></td><td>{x.portal_token?<button className="secondary" onClick={()=>copyPortal(x.portal_token!)}>링크 복사</button>:<span className="muted">DB 적용 후 생성</span>}</td></tr>)}</tbody></table>}
             {tab==='programs'&&<table className="table"><thead><tr><th>기관</th><th>프로그램</th><th>기간</th><th>강사</th><th>상태</th></tr></thead><tbody>{programs.map(x=><tr key={x.id}><td>{x.institution?.name||'-'}</td><td><b>{x.name}</b></td><td>{x.starts_on} ~ {x.ends_on}</td><td>{x.instructor?.name||'-'}</td><td><span className="status">{x.status}</span></td></tr>)}</tbody></table>}
             {tab==='students'&&<table className="table"><thead><tr><th>기관</th><th>프로그램</th><th>학생</th><th>학년</th><th>보호자 언어</th><th>연락처</th></tr></thead><tbody>{students.map(x=><tr key={x.id}><td>{x.program?.institution?.name||'-'}</td><td>{x.program?.name||'-'}</td><td><b>{x.name}</b></td><td>{x.grade}학년</td><td>{langLabel[x.guardian?.language||'ko']}</td><td>{x.guardian?.phone||'-'}</td></tr>)}</tbody></table>}
             {((tab==='institutions'&&!institutions.length)||(tab==='programs'&&!programs.length)||(tab==='students'&&!students.length))&&<div className="empty">아직 등록된 데이터가 없습니다.</div>}
