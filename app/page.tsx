@@ -72,7 +72,7 @@ export default function Home(){
         <button onClick={()=>setTab('students')}>학생</button>
         <button onClick={()=>window.location.href='/attendance'}>출석</button>
         <button onClick={()=>window.location.href='/reports'}>보호자 리포트</button>
-        <button>영상</button>
+        <button onClick={()=>window.location.href='/wrong-types'}>오답·영상</button>
         <button>설정</button>
       </div>
     </aside>
