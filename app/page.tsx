@@ -66,7 +66,14 @@ export default function Home(){
     <aside className="sidebar">
       <div className="brand">MOASEM<small>기관 위탁 수학 학습관리</small></div>
       <div className="nav">
-        <button className="active">대시보드</button><button>기관</button><button>프로그램</button><button>학생</button><button>강사</button><button>보고서</button><button>영상</button><button>설정</button>
+        <button className="active">대시보드</button>
+        <button onClick={()=>setTab('institutions')}>기관</button>
+        <button onClick={()=>setTab('programs')}>프로그램</button>
+        <button onClick={()=>setTab('students')}>학생</button>
+        <button onClick={()=>window.location.href='/attendance'}>출석</button>
+        <button onClick={()=>window.location.href='/reports'}>보호자 리포트</button>
+        <button>영상</button>
+        <button>설정</button>
       </div>
     </aside>
     <main className="main">
@@ -89,7 +96,7 @@ export default function Home(){
           {tab==='institutions'&&<form className="form" onSubmit={addInstitution}><div className="field"><label>기관명 *</label><input name="name" required placeholder="예: 광주○○가족센터"/></div><div className="field"><label>담당자</label><input name="manager_name" placeholder="담당자 이름"/></div><div className="field"><label>연락처</label><input name="manager_phone" placeholder="010-0000-0000"/></div><button className="primary">기관 등록</button></form>}
           {tab==='programs'&&<form className="form" onSubmit={addProgram}><div className="field"><label>기관 *</label><select name="institution_id" required><option value="">선택</option>{institutions.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div><div className="field"><label>프로그램명 *</label><input name="name" required placeholder="다문화 초등 수학 1기"/></div><div className="row2"><div className="field"><label>시작일 *</label><input type="date" name="starts_on" required/></div><div className="field"><label>종료일 *</label><input type="date" name="ends_on" required/></div></div><div className="row2"><div className="field"><label>주차 수 *</label><input type="number" name="week_count" min="1" required/></div><div className="field"><label>담당 강사</label><input name="instructor_name"/></div></div><div className="field"><label>대면 요일</label><input name="in_person_weekdays" placeholder="예: 화"/></div><div className="field"><label>Zoom 요일</label><input name="zoom_weekdays" placeholder="예: 목, 토"/></div><div className="field"><label>Zoom 회의 번호</label><input name="zoom_meeting_number"/></div><div className="field"><label>Zoom 암호</label><input name="zoom_password"/></div><button className="primary">프로그램 만들기</button></form>}
           {tab==='students'&&<form className="form" onSubmit={addStudent}><div className="field"><label>프로그램 *</label><select name="program_id" required><option value="">선택</option>{programs.map(x=><option key={x.id} value={x.id}>{x.institution?.name} · {x.name}</option>)}</select></div><div className="row2"><div className="field"><label>학생 이름 *</label><input name="name" required/></div><div className="field"><label>학년 *</label><select name="grade" required>{[1,2,3,4,5,6,7,8,9,10,11,12].map(n=><option key={n} value={n}>{n}학년</option>)}</select></div></div><div className="field"><label>학생 번호</label><input name="student_number" placeholder="선택 입력"/></div><div className="field"><label>보호자 이름</label><input name="guardian_name"/></div><div className="field"><label>보호자 연락처 *</label><input name="guardian_phone" required/></div><div className="field"><label>보호자 언어 *</label><select name="guardian_language" defaultValue="ko"><option value="ko">한국어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></div><button className="primary">학생 · 보호자 등록</button></form>}
-          <p className="help" style={{padding:'0 20px 20px'}}>현재는 1차 등록 기능만 구현했습니다. 출석·과제·채점은 다음 단계에서 연결합니다.</p>
+          <p className="help" style={{padding:'0 20px 20px'}}>출석과 보호자 리포트는 왼쪽 메뉴에서 바로 사용할 수 있습니다. 과제 사진 자동채점은 후속 단계에서 연결합니다.</p>
         </aside>
       </div>
       {message&&<div className="message">{message}</div>}
