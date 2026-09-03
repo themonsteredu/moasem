@@ -8,7 +8,10 @@
 - DB는 aiapp 프로젝트의 `moasem` 스키마를 사용한다. 모든 모아셈 테이블은 `moasem` 스키마 안에 두고 이름에 접두어를 붙이지 않는다. (예: `moasem.students`)
 - `public` 스키마에는 모아킷 등 다른 앱의 테이블 116개가 있다. 절대 수정·삭제하지 않는다. `public` 스키마의 RLS 설정도 건드리지 않는다.
 - 앱 접속은 `lib/supabase-admin.ts` 한 곳에서 `db: { schema: 'moasem' }` 로 스키마를 고정한다. 코드에서는 `.from('students')` 처럼 접두어 없이 호출한다.
-- Supabase 대시보드 Project Settings → API → Exposed schemas 는 `public, graphql_public, moasem` 이어야 한다. `public` 을 빼면 기존 앱 전체가 멈춘다.
+- Supabase 대시보드 Project Settings → API → Exposed schemas 는
+  `public, graphql_public, moalab, ai_upcycling, moasem` 이어야 한다.
+  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(116표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(12표).
+  이 목록은 반드시 **추가만** 한다. 기존 항목을 하나라도 빼면 해당 앱이 즉시 멈춘다.
 - 기준 데이터 구조는 기관 → 프로그램 → 학생 → 보호자다.
 - 기능 구현 전 화면 구성을 먼저 설명하고 사용자 확인을 받는다.
 - 기능 하나가 끝날 때마다 테스트 방법을 안내하고 멈춘다.
