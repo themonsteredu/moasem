@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
+const privateHeaders = {
+  'Cache-Control': 'private, no-store, max-age=0',
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+}
+
 export async function GET(_request: NextRequest, { params }: { params: { token: string } }) {
   try {
     const supabase = getSupabaseAdmin()
@@ -11,7 +16,10 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       .single()
 
     if (institutionError || !institution) {
-      return NextResponse.json({ error: '유효하지 않은 기관 링크입니다.' }, { status: 404 })
+      return NextResponse.json(
+        { error: '유효하지 않은 기관 링크입니다.' },
+        { status: 404, headers: privateHeaders },
+      )
     }
 
     const { data: programs, error: programError } = await supabase
@@ -24,7 +32,10 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const programIds = (programs ?? []).map(program => program.id)
 
     if (!programIds.length) {
-      return NextResponse.json({ institution, programs: [], students: [], attendance: [] })
+      return NextResponse.json(
+        { institution, programs: [], students: [], attendance: [] },
+        { headers: privateHeaders },
+      )
     }
 
     const { data: students, error: studentError } = await supabase
@@ -50,8 +61,14 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       if (!page || page.length < pageSize) break
     }
 
-    return NextResponse.json({ institution, programs: programs ?? [], students: students ?? [], attendance })
+    return NextResponse.json(
+      { institution, programs: programs ?? [], students: students ?? [], attendance },
+      { headers: privateHeaders },
+    )
   } catch {
-    return NextResponse.json({ error: '기관 현황을 불러오지 못했습니다.' }, { status: 500 })
+    return NextResponse.json(
+      { error: '기관 현황을 불러오지 못했습니다.' },
+      { status: 500, headers: privateHeaders },
+    )
   }
 }
