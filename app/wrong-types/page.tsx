@@ -189,7 +189,7 @@ export default function WrongTypesPage() {
           ?? filteredItems.find(item => !primaryVideo(item) && item.id !== draft.id)
         if (next) editType(next)
       } else if (!draft.id) {
-        setDraft({ ...emptyType, id: data.item.id, code: draft.code, name: draft.name, grade: draft.grade })
+        setDraft({ ...draft, id: data.item.id })
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '저장하지 못했습니다.')
