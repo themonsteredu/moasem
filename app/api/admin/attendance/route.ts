@@ -49,15 +49,32 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin()
-    const rows = records.map((record: { student_id: string; status: string; note?: string }) => ({
-      program_id: programId,
-      student_id: record.student_id,
-      session_date: sessionDate,
-      session_type: 'in_person',
-      status: record.status,
-      note: record.note || null,
-      updated_at: new Date().toISOString(),
-    }))
+    const recordStudentIds = records.map((record: { student_id: string }) => String(record.student_id))
+    const { data: validStudents, error: validStudentError } = await supabase
+      .from('moasem_students')
+      .select('id')
+      .eq('program_id', programId)
+      .in('id', recordStudentIds)
+
+    if (validStudentError) throw validStudentError
+    const validIds = new Set((validStudents ?? []).map(student => student.id))
+    if (validIds.size !== new Set(recordStudentIds).size) {
+      return NextResponse.json({ error: '선택한 프로그램에 속하지 않은 학생이 포함되어 있습니다.' }, { status: 400 })
+    }
+
+    const allowedStatuses = new Set(['present','absent','late','excused'])
+    const rows = records.map((record: { student_id: string; status: string; note?: string }) => {
+      if (!allowedStatuses.has(record.status)) throw new Error('INVALID_STATUS')
+      return {
+        program_id: programId,
+        student_id: record.student_id,
+        session_date: sessionDate,
+        session_type: 'in_person',
+        status: record.status,
+        note: record.note || null,
+        updated_at: new Date().toISOString(),
+      }
+    })
 
     const { error } = await supabase
       .from('moasem_attendance')
@@ -68,6 +85,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'INVALID_STATUS') {
+      return NextResponse.json({ error: '올바르지 않은 출석 상태가 포함되어 있습니다.' }, { status: 400 })
     }
     return NextResponse.json({ error: '출석을 저장하지 못했습니다.' }, { status: 500 })
   }

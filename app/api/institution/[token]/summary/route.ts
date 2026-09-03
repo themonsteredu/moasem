@@ -27,25 +27,30 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       return NextResponse.json({ institution, programs: [], students: [], attendance: [] })
     }
 
-    const [{ data: students, error: studentError }, { data: attendance, error: attendanceError }] = await Promise.all([
-      supabase
-        .from('moasem_students')
-        .select('id,name,grade,program_id,student_number')
-        .in('program_id', programIds)
-        .eq('active', true)
-        .order('name'),
-      supabase
+    const { data: students, error: studentError } = await supabase
+      .from('moasem_students')
+      .select('id,name,grade,program_id,student_number')
+      .in('program_id', programIds)
+      .eq('active', true)
+      .order('name')
+
+    if (studentError) throw studentError
+
+    const attendance: Array<{student_id:string;program_id:string;session_date:string;session_type:string;status:string}> = []
+    const pageSize = 1000
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await supabase
         .from('moasem_attendance')
         .select('student_id,program_id,session_date,session_type,status')
         .in('program_id', programIds)
         .order('session_date', { ascending: false })
-        .limit(500),
-    ])
+        .range(from, from + pageSize - 1)
+      if (error) throw error
+      attendance.push(...(page ?? []))
+      if (!page || page.length < pageSize) break
+    }
 
-    if (studentError) throw studentError
-    if (attendanceError) throw attendanceError
-
-    return NextResponse.json({ institution, programs: programs ?? [], students: students ?? [], attendance: attendance ?? [] })
+    return NextResponse.json({ institution, programs: programs ?? [], students: students ?? [], attendance })
   } catch {
     return NextResponse.json({ error: '기관 현황을 불러오지 못했습니다.' }, { status: 500 })
   }
