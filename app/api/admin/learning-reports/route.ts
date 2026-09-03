@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { assertAdmin } from '@/lib/admin-auth'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
+
+export async function POST(request: NextRequest) {
+  try {
+    assertAdmin(request)
+    const body = await request.json()
+    const studentId = String(body.student_id ?? '')
+    const lessonDate = String(body.lesson_date ?? '')
+    if (!studentId || !lessonDate) return NextResponse.json({ error: '학생과 수업일을 확인하세요.' }, { status: 400 })
+
+    const supabase = getSupabaseAdmin()
+    const { data: student, error: studentError } = await supabase
+      .from('moasem_students')
+      .select('id,program_id,guardian_id,guardian:moasem_guardians(id,language)')
+      .eq('id', studentId)
+      .single()
+    if (studentError || !student) return NextResponse.json({ error: '학생 정보를 찾지 못했습니다.' }, { status: 404 })
+
+    const { data: log, error: logError } = await supabase
+      .from('moasem_learning_logs')
+      .insert({
+        student_id: student.id,
+        program_id: student.program_id,
+        lesson_date: lessonDate,
+        solved_count: Number(body.solved_count ?? 0),
+        wrong_count: Number(body.wrong_count ?? 0),
+        wrong_type_summary: body.wrong_type_summary || null,
+        weekly_assignment: body.weekly_assignment || null,
+        video_url: body.video_url || null,
+        teacher_note: body.teacher_note || null,
+      })
+      .select('id')
+      .single()
+    if (logError) throw logError
+
+    const guardian = Array.isArray(student.guardian) ? student.guardian[0] : student.guardian
+    const language = body.language || guardian?.language || 'ko'
+    const { data: report, error: reportError } = await supabase
+      .from('moasem_guardian_reports')
+      .insert({
+        student_id: student.id,
+        guardian_id: student.guardian_id,
+        learning_log_id: log.id,
+        language,
+        headline: body.headline || null,
+        action_line: body.action_line || null,
+      })
+      .select('token,expires_at')
+      .single()
+    if (reportError) throw reportError
+
+    return NextResponse.json({ token: report.token, expires_at: report.expires_at }, { status: 201 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
+    return NextResponse.json({ error: '리포트를 만들지 못했습니다.' }, { status: 500 })
+  }
+}
