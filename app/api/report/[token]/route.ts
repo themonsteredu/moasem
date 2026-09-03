@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const privateHeaders = {
   'Cache-Control': 'private, no-store, max-age=0',
   'X-Robots-Tag': 'noindex, nofollow, noarchive',
