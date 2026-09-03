@@ -6,13 +6,26 @@ export async function GET(request: NextRequest) {
   try {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
+    const primary = await supabase
       .from('moasem_institutions')
       .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,portal_token,created_at')
       .order('created_at', { ascending: false })
 
-    if (error) throw error
-    return NextResponse.json({ items: data ?? [] })
+    if (!primary.error) {
+      return NextResponse.json({ items: primary.data ?? [] })
+    }
+
+    // 0002 마이그레이션이 아직 적용되지 않은 동안에도 기본 관리자 화면은 유지한다.
+    if (primary.error.code === '42703' || primary.error.message.includes('portal_token')) {
+      const fallback = await supabase
+        .from('moasem_institutions')
+        .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,created_at')
+        .order('created_at', { ascending: false })
+      if (fallback.error) throw fallback.error
+      return NextResponse.json({ items: (fallback.data ?? []).map(item => ({ ...item, portal_token: null })) })
+    }
+
+    throw primary.error
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
