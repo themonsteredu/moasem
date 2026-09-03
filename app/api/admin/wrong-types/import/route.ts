@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_wrong_types')
+      .from('wrong_types')
       .upsert(items, { onConflict: 'code' })
       .select('id')
     if (error) throw error

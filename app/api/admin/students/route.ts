@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_students')
-      .select('id,name,grade,student_number,active,program:moasem_programs(id,name,institution:moasem_institutions(id,name)),guardian:moasem_guardians(id,name,phone,language)')
+      .from('students')
+      .select('id,name,grade,student_number,active,program:programs(id,name,institution:institutions(id,name)),guardian:guardians(id,name,phone,language)')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: guardian, error: guardianError } = await supabase
-      .from('moasem_guardians')
+      .from('guardians')
       .insert({
         name: body.guardian_name || null,
         phone: guardianPhone,
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (guardianError) throw guardianError
 
     const { data: student, error: studentError } = await supabase
-      .from('moasem_students')
+      .from('students')
       .insert({
         program_id: body.program_id,
         guardian_id: guardian.id,
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (studentError) {
-      await supabase.from('moasem_guardians').delete().eq('id', guardian.id)
+      await supabase.from('guardians').delete().eq('id', guardian.id)
       throw studentError
     }
 

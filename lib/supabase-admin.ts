@@ -10,5 +10,6 @@ export function getSupabaseAdmin() {
 
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    db: { schema: 'moasem' },
   })
 }

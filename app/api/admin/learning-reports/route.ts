@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const { data: student, error: studentError } = await supabase
-      .from('moasem_students')
-      .select('id,program_id,guardian_id,guardian:moasem_guardians(id,language)')
+      .from('students')
+      .select('id,program_id,guardian_id,guardian:guardians(id,language)')
       .eq('id', studentId)
       .single()
     if (studentError || !student) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const language = allowedLanguages.has(requestedLanguage) ? requestedLanguage : 'ko'
 
     const { data: log, error: logError } = await supabase
-      .from('moasem_learning_logs')
+      .from('learning_logs')
       .insert({
         student_id: student.id,
         program_id: student.program_id,
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     if (logError) throw logError
 
     const { data: report, error: reportError } = await supabase
-      .from('moasem_guardian_reports')
+      .from('guardian_reports')
       .insert({
         student_id: student.id,
         guardian_id: student.guardian_id,
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (reportError) {
-      await supabase.from('moasem_learning_logs').delete().eq('id', log.id)
+      await supabase.from('learning_logs').delete().eq('id', log.id)
       throw reportError
     }
 
