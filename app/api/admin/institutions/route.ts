@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
       .from('moasem_institutions')
-      .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,created_at')
+      .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,portal_token,created_at')
       .order('created_at', { ascending: false })
 
     if (error) throw error
