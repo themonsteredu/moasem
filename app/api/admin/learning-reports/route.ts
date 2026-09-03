@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assertAdmin } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
+const allowedLanguages = new Set(['ko', 'vi', 'zh-CN'])
+
 export async function POST(request: NextRequest) {
   try {
     assertAdmin(request)
     const body = await request.json()
     const studentId = String(body.student_id ?? '')
     const lessonDate = String(body.lesson_date ?? '')
-    if (!studentId || !lessonDate) return NextResponse.json({ error: '학생과 수업일을 확인하세요.' }, { status: 400 })
+    const solvedCount = Number(body.solved_count ?? 0)
+    const wrongCount = Number(body.wrong_count ?? 0)
+
+    if (!studentId || !lessonDate) {
+      return NextResponse.json({ error: '학생과 수업일을 확인하세요.' }, { status: 400 })
+    }
+    if (!Number.isInteger(solvedCount) || !Number.isInteger(wrongCount) || solvedCount < 0 || wrongCount < 0 || wrongCount > solvedCount) {
+      return NextResponse.json({ error: '문제 수와 틀린 문제 수를 확인하세요.' }, { status: 400 })
+    }
 
     const supabase = getSupabaseAdmin()
     const { data: student, error: studentError } = await supabase
@@ -16,7 +26,13 @@ export async function POST(request: NextRequest) {
       .select('id,program_id,guardian_id,guardian:moasem_guardians(id,language)')
       .eq('id', studentId)
       .single()
-    if (studentError || !student) return NextResponse.json({ error: '학생 정보를 찾지 못했습니다.' }, { status: 404 })
+    if (studentError || !student) {
+      return NextResponse.json({ error: '학생 정보를 찾지 못했습니다.' }, { status: 404 })
+    }
+
+    const guardian = Array.isArray(student.guardian) ? student.guardian[0] : student.guardian
+    const requestedLanguage = String(body.language || guardian?.language || 'ko')
+    const language = allowedLanguages.has(requestedLanguage) ? requestedLanguage : 'ko'
 
     const { data: log, error: logError } = await supabase
       .from('moasem_learning_logs')
@@ -24,8 +40,8 @@ export async function POST(request: NextRequest) {
         student_id: student.id,
         program_id: student.program_id,
         lesson_date: lessonDate,
-        solved_count: Number(body.solved_count ?? 0),
-        wrong_count: Number(body.wrong_count ?? 0),
+        solved_count: solvedCount,
+        wrong_count: wrongCount,
         wrong_type_summary: body.wrong_type_summary || null,
         weekly_assignment: body.weekly_assignment || null,
         video_url: body.video_url || null,
@@ -35,8 +51,6 @@ export async function POST(request: NextRequest) {
       .single()
     if (logError) throw logError
 
-    const guardian = Array.isArray(student.guardian) ? student.guardian[0] : student.guardian
-    const language = body.language || guardian?.language || 'ko'
     const { data: report, error: reportError } = await supabase
       .from('moasem_guardian_reports')
       .insert({
@@ -49,11 +63,17 @@ export async function POST(request: NextRequest) {
       })
       .select('token,expires_at')
       .single()
-    if (reportError) throw reportError
+
+    if (reportError) {
+      await supabase.from('moasem_learning_logs').delete().eq('id', log.id)
+      throw reportError
+    }
 
     return NextResponse.json({ token: report.token, expires_at: report.expires_at }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
+    }
     return NextResponse.json({ error: '리포트를 만들지 못했습니다.' }, { status: 500 })
   }
 }
