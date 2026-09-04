@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const primary = await supabase
-      .from('moasem_institutions')
+      .from('institutions')
       .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,portal_token,created_at')
       .order('created_at', { ascending: false })
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // 0002 마이그레이션이 아직 적용되지 않은 동안에도 기본 관리자 화면은 유지한다.
     if (primary.error.code === '42703' || primary.error.message.includes('portal_token')) {
       const fallback = await supabase
-        .from('moasem_institutions')
+        .from('institutions')
         .select('id,name,logo_url,manager_name,manager_phone,manager_notifications_enabled,created_at')
         .order('created_at', { ascending: false })
       if (fallback.error) throw fallback.error
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_institutions')
+      .from('institutions')
       .insert({
         name,
         logo_url: body.logo_url || null,

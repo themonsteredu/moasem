@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_wrong_types')
-      .select('id,code,name,grade,semester,domain,unit,description_ko,description_vi,description_zh_cn,display_order,active,video_links:moasem_wrong_type_videos(is_primary,priority,video:moasem_supplement_videos(id,title,url,duration_seconds,language,active))')
+      .from('wrong_types')
+      .select('id,code,name,grade,semester,domain,unit,description_ko,description_vi,description_zh_cn,display_order,active,video_links:wrong_type_videos(is_primary,priority,video:supplement_videos(id,title,url,duration_seconds,language,active))')
       .order('display_order', { ascending: true })
       .order('code', { ascending: true })
 
@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const query = body.id
-      ? supabase.from('moasem_wrong_types').update(payload).eq('id', body.id)
-      : supabase.from('moasem_wrong_types').insert(payload)
+      ? supabase.from('wrong_types').update(payload).eq('id', body.id)
+      : supabase.from('wrong_types').insert(payload)
     const { data: item, error } = await query.select('id,code,name').single()
 
     if (error) {
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     if (Object.prototype.hasOwnProperty.call(body, 'primary_video_id')) {
       const { error: deleteError } = await supabase
-        .from('moasem_wrong_type_videos')
+        .from('wrong_type_videos')
         .delete()
         .eq('wrong_type_id', item.id)
         .eq('is_primary', true)
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
       if (body.primary_video_id) {
         const { error: linkError } = await supabase
-          .from('moasem_wrong_type_videos')
+          .from('wrong_type_videos')
           .upsert({ wrong_type_id: item.id, video_id: body.primary_video_id, is_primary: true, priority: 0 }, { onConflict: 'wrong_type_id,video_id' })
         if (linkError) throw linkError
       }

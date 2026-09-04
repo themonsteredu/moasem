@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_programs')
-      .select('id,name,starts_on,ends_on,week_count,status,in_person_weekdays,zoom_weekdays,zoom_meeting_number,institution:moasem_institutions(id,name),instructor:moasem_instructors(id,name)')
+      .from('programs')
+      .select('id,name,starts_on,ends_on,week_count,status,in_person_weekdays,zoom_weekdays,zoom_meeting_number,institution:institutions(id,name),instructor:instructors(id,name)')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const instructorName = String(body.instructor_name ?? '').trim()
     if (instructorName) {
       const { data: instructor, error: instructorError } = await supabase
-        .from('moasem_instructors')
+        .from('instructors')
         .insert({ name: instructorName, phone: body.instructor_phone || null })
         .select('id')
         .single()
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('moasem_programs')
+      .from('programs')
       .insert({
         institution_id: body.institution_id,
         name: String(body.name ?? '').trim(),

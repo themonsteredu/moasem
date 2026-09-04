@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const [{ data: students, error: studentError }, { data: attendance, error: attendanceError }] = await Promise.all([
-      supabase.from('moasem_students').select('id,name,grade,student_number').eq('program_id', programId).eq('active', true).order('name'),
-      supabase.from('moasem_attendance').select('id,student_id,status,note').eq('program_id', programId).eq('session_date', sessionDate).eq('session_type', 'in_person'),
+      supabase.from('students').select('id,name,grade,student_number').eq('program_id', programId).eq('active', true).order('name'),
+      supabase.from('attendance').select('id,student_id,status,note').eq('program_id', programId).eq('session_date', sessionDate).eq('session_type', 'in_person'),
     ])
 
     if (studentError) throw studentError
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin()
     const recordStudentIds = records.map((record: { student_id: string }) => String(record.student_id))
     const { data: validStudents, error: validStudentError } = await supabase
-      .from('moasem_students')
+      .from('students')
       .select('id')
       .eq('program_id', programId)
       .in('id', recordStudentIds)
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
 
     const { error } = await supabase
-      .from('moasem_attendance')
+      .from('attendance')
       .upsert(rows, { onConflict: 'student_id,session_date,session_type' })
 
     if (error) throw error

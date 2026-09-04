@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
   try {
     const supabase = getSupabaseAdmin()
     const { data: institution, error: institutionError } = await supabase
-      .from('moasem_institutions')
+      .from('institutions')
       .select('id,name,logo_url,manager_name')
       .eq('portal_token', params.token)
       .single()
@@ -26,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     }
 
     const { data: programs, error: programError } = await supabase
-      .from('moasem_programs')
+      .from('programs')
       .select('id,name,starts_on,ends_on,status')
       .eq('institution_id', institution.id)
       .order('starts_on', { ascending: false })
@@ -42,7 +42,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     }
 
     const { data: students, error: studentError } = await supabase
-      .from('moasem_students')
+      .from('students')
       .select('id,name,grade,program_id,student_number')
       .in('program_id', programIds)
       .eq('active', true)
@@ -54,7 +54,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const pageSize = 1000
     for (let from = 0; ; from += pageSize) {
       const { data: page, error } = await supabase
-        .from('moasem_attendance')
+        .from('attendance')
         .select('student_id,program_id,session_date,session_type,status')
         .in('program_id', programIds)
         .order('session_date', { ascending: false })

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
-      .from('moasem_supplement_videos')
+      .from('supplement_videos')
       .select('id,title,url,duration_seconds,language,provider,visibility,active')
       .order('active', { ascending: false })
       .order('title', { ascending: true })
@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin()
     const query = body.id
-      ? supabase.from('moasem_supplement_videos').update(payload).eq('id', body.id)
-      : supabase.from('moasem_supplement_videos').insert(payload)
+      ? supabase.from('supplement_videos').update(payload).eq('id', body.id)
+      : supabase.from('supplement_videos').insert(payload)
     const { data: item, error } = await query.select().single()
     if (error) throw error
     return NextResponse.json({ item }, { status: body.id ? 200 : 201, headers: privateHeaders })
