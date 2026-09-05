@@ -10,7 +10,7 @@ import { notificationMessages } from '../../lib/notification-view'
 import type { ReportOption } from '../../lib/report-resources'
 
 type Student={id:string;name:string;grade:number;program:{id:string;name:string;institution:{id:string;name:string}|null}|null;guardian:{id:string;name:string|null;phone:string;language:string}|null}
-const languageLabel:Record<string,string>={ko:'한국어',vi:'베트남어','zh-CN':'중국어 간체'}
+const languageLabel:Record<string,string>={ko:'한국어',en:'영어',vi:'베트남어','zh-CN':'중국어 간체'}
 function localDate(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 
 export default function ReportsPage(){
@@ -84,7 +84,7 @@ export default function ReportsPage(){
             <label className="field"><span>이번 주 과제</span><input name="weekly_assignment" placeholder="예: 교재 24~27쪽, 하루 두 쪽씩"/></label>
             <label className="field"><span>추가 영상 주소 · 선택 입력</span><input name="video_url" type="url" placeholder="자동 연결 영상 외에 더 보낼 영상이 있다면 입력하세요"/></label>
             <div className="form-section-title"><span>3</span>보호자에게 전할 말</div>
-            <label className="field"><span>보호자 안내 언어</span><select value={language} onChange={event=>setLanguage(event.target.value)}><option value="ko">한국어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></label>
+            <label className="field"><span>보호자 안내 언어</span><select value={language} onChange={event=>setLanguage(event.target.value)}><option value="ko">한국어</option><option value="en">영어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></label>
             <p className="field-help">아래 안내는 선택한 보호자 언어로 직접 작성해 주세요. 입력한 문장이 그대로 전달됩니다.</p>
             <label className="field"><span>오늘의 한 줄</span><input name="headline" placeholder={`${languageLabel[language]}로 오늘의 성장을 적어 주세요`}/></label>
             <label className="field"><span>가정에서 함께할 일</span><textarea name="action_line" rows={2} placeholder={`${languageLabel[language]}로 보호자가 도와줄 행동 한 가지`}/></label>

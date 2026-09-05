@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
         domain: optionalText(row.domain),
         unit: optionalText(row.unit),
         description_ko: optionalText(row.description_ko),
+        description_en: optionalText(row.description_en),
         description_vi: optionalText(row.description_vi),
         description_zh_cn: optionalText(row.description_zh_cn),
         display_order: Number.isInteger(Number(row.display_order)) ? Number(row.display_order) : index,

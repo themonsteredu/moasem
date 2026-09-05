@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { assertAdmin, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { isSupportedLanguage } from '@/lib/languages'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       title,
       url: parsedUrl.toString(),
       duration_seconds: body.duration_seconds ? Number(body.duration_seconds) : null,
-      language: ['ko', 'vi', 'zh-CN'].includes(body.language) ? body.language : 'ko',
+      language: isSupportedLanguage(body.language) ? body.language : 'ko',
       provider: ['youtube', 'vimeo', 'direct', 'other'].includes(body.provider) ? body.provider : 'youtube',
       visibility: ['public', 'unlisted', 'private'].includes(body.visibility) ? body.visibility : 'unlisted',
       active: body.active !== false,

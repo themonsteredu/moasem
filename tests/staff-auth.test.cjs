@@ -142,6 +142,21 @@ test('Instructor cannot create accounts or register students', async () => {
   assert.deepEqual(identityCalls, [])
   assert.deepEqual(writes, [])
 })
+test('Only an administrator can update age confirmation and guardian language', async () => {
+  const body = { student_id: studentId, is_under_14: true, guardian_language: 'en', staff_id: 'spoofed' }
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body }))).status, 403)
+  account.role = 'admin'; account.instructor_id = null
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body: { ...body, is_under_14: 'true' } }))).status, 400)
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body }))).status, 200)
+  assert.deepEqual(rpcCalls, [{ name: 'update_student_consent_details', args: { p_staff_id: account.id, p_student_id: studentId, p_is_under_14: true, p_language: 'en' } }])
+})
+test('English reports reach storage as English and unsupported languages are rejected', async () => {
+  const body = { student_id: studentId, lesson_date: '2026-09-05', solved_count: 10, wrong_count: 1, language: 'en' }
+  assert.equal((await reports.POST(req('/', { method: 'POST', body }))).status, 201)
+  assert.equal(rpcCalls[0].args.p_payload.language, 'en')
+  assert.equal((await reports.POST(req('/', { method: 'POST', body: { ...body, language: 'fr' } }))).status, 400)
+  assert.equal(rpcCalls.length, 1)
+})
 test('Cross-origin mutations are rejected before database or identity calls', async () => {
   assert.equal((await login.POST(req('/api/auth/login', { method: 'POST', origin: 'https://attacker.example', body: {} }))).status, 403)
   assert.equal((await attendance.POST(req('/api/admin/attendance', { method: 'POST', origin: 'https://attacker.example', body: {} }))).status, 403)

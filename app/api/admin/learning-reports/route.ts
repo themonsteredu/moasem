@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assertStaff, assertProgramAccess, authErrorResponse, privateHeaders } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { safeVideoUrl } from '@/lib/report-resources'
-
-const allowedLanguages = new Set(['ko', 'vi', 'zh-CN'])
+import { isSupportedLanguage } from '@/lib/languages'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +42,8 @@ export async function POST(request: NextRequest) {
     await assertProgramAccess(staff, student.program_id)
     const guardian = Array.isArray(student.guardian) ? student.guardian[0] : student.guardian
     const requestedLanguage = String(body.language || guardian?.language || 'ko')
-    const language = allowedLanguages.has(requestedLanguage) ? requestedLanguage : 'ko'
+    if (!isSupportedLanguage(requestedLanguage)) return NextResponse.json({ error: '지원하는 보호자 언어를 선택해 주세요.' }, { status: 400, headers: privateHeaders })
+    const language = requestedLanguage
 
     const { data, error } = await supabase.rpc('create_staff_learning_report', {
       p_staff_id: staff.id,

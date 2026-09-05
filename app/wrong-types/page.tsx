@@ -31,6 +31,7 @@ type WrongType = {
   domain: string | null
   unit: string | null
   description_ko: string | null
+  description_en: string | null
   description_vi: string | null
   description_zh_cn: string | null
   display_order: number
@@ -40,11 +41,11 @@ type WrongType = {
 
 type WrongTypeDraft = Omit<WrongType, 'video_links'> & { primary_video_id: string }
 type Tab = 'types' | 'videos'
-type DescriptionLanguage = 'ko' | 'vi' | 'zh-CN'
+type DescriptionLanguage = 'ko' | 'en' | 'vi' | 'zh-CN'
 
 const emptyType: WrongTypeDraft = {
   id: '', code: '', name: '', grade: 1, semester: 1, domain: '', unit: '',
-  description_ko: '', description_vi: '', description_zh_cn: '', display_order: 0,
+  description_ko: '', description_en: '', description_vi: '', description_zh_cn: '', display_order: 0,
   active: true, primary_video_id: '',
 }
 
@@ -53,9 +54,9 @@ const emptyVideo: Video = {
   provider: 'youtube', visibility: 'unlisted', active: true,
 }
 
-const languageLabel: Record<string, string> = { ko: '한국어', vi: '베트남어', 'zh-CN': '중국어 간체' }
+const languageLabel: Record<string, string> = { ko: '한국어', en: '영어', vi: '베트남어', 'zh-CN': '중국어 간체' }
 const visibilityLabel: Record<string, string> = { public: '공개', unlisted: '일부 공개', private: '비공개' }
-const csvColumns = ['code', 'name', 'grade', 'semester', 'domain', 'unit', 'description_ko', 'description_vi', 'description_zh_cn', 'display_order', 'active']
+const csvColumns = ['code', 'name', 'grade', 'semester', 'domain', 'unit', 'description_ko', 'description_en', 'description_vi', 'description_zh_cn', 'display_order', 'active']
 
 function parseCsv(text: string) {
   const rows: string[][] = []
@@ -186,7 +187,7 @@ export default function WrongTypesPage() {
     setDraft({
       id: item.id, code: item.code, name: item.name, grade: item.grade, semester: item.semester,
       domain: item.domain ?? '', unit: item.unit ?? '', description_ko: item.description_ko ?? '',
-      description_vi: item.description_vi ?? '', description_zh_cn: item.description_zh_cn ?? '',
+      description_en: item.description_en ?? '', description_vi: item.description_vi ?? '', description_zh_cn: item.description_zh_cn ?? '',
       display_order: item.display_order, active: item.active, primary_video_id: primaryVideo(item)?.id ?? '',
     })
     setTypeEditorOpen(true)
@@ -286,10 +287,10 @@ export default function WrongTypesPage() {
     }
   }
 
-  const descriptionValue = descriptionLanguage === 'ko' ? draft.description_ko : descriptionLanguage === 'vi' ? draft.description_vi : draft.description_zh_cn
+  const descriptionValue = descriptionLanguage === 'ko' ? draft.description_ko : descriptionLanguage === 'en' ? draft.description_en : descriptionLanguage === 'vi' ? draft.description_vi : draft.description_zh_cn
   const updateDescription = (value: string) => setDraft(descriptionLanguage === 'ko'
     ? { ...draft, description_ko: value }
-    : descriptionLanguage === 'vi' ? { ...draft, description_vi: value } : { ...draft, description_zh_cn: value })
+    : descriptionLanguage === 'en' ? { ...draft, description_en: value } : descriptionLanguage === 'vi' ? { ...draft, description_vi: value } : { ...draft, description_zh_cn: value })
 
   return <Workspace current="/wrong-types" title="오답·보충영상" description="어려워하는 유형에 필요한 설명 영상을 연결하세요." action={<div className="catalog-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><label className="catalog-button primary file-control">CSV 일괄등록<input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={busy}/></label></div>}>
     <StaffAccess onLoad={loadAll} busy={busy}/>
@@ -339,7 +340,7 @@ export default function WrongTypesPage() {
             <label>오답 유형명 *<input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} required placeholder="예: 세 자리 수 받아올림" /></label>
             <div className="catalog-row2"><label>학년 *<select value={draft.grade} onChange={event => setDraft({ ...draft, grade: Number(event.target.value) })}>{[1,2,3,4,5,6].map(value => <option key={value} value={value}>{value}학년</option>)}</select></label><label>학기<select value={draft.semester ?? ''} onChange={event => setDraft({ ...draft, semester: event.target.value ? Number(event.target.value) : null })}><option value="">구분 없음</option><option value="1">1학기</option><option value="2">2학기</option></select></label></div>
             <div className="catalog-row2"><label>영역<input value={draft.domain ?? ''} onChange={event => setDraft({ ...draft, domain: event.target.value })} placeholder="수와 연산" /></label><label>단원<input value={draft.unit ?? ''} onChange={event => setDraft({ ...draft, unit: event.target.value })} placeholder="덧셈과 뺄셈" /></label></div>
-            <div className="catalog-description"><span>보호자용 설명</span><div className="catalog-language-tabs">{(['ko','vi','zh-CN'] as DescriptionLanguage[]).map(value => <button type="button" key={value} className={descriptionLanguage === value ? 'active' : ''} onClick={() => setDescriptionLanguage(value)}>{languageLabel[value]}</button>)}</div><textarea rows={3} value={descriptionValue ?? ''} onChange={event => updateDescription(event.target.value)} placeholder={`${languageLabel[descriptionLanguage]} 설명을 입력하세요.`} /></div>
+            <div className="catalog-description"><span>보호자용 설명</span><div className="catalog-language-tabs">{(['ko','en','vi','zh-CN'] as DescriptionLanguage[]).map(value => <button type="button" key={value} className={descriptionLanguage === value ? 'active' : ''} onClick={() => setDescriptionLanguage(value)}>{languageLabel[value]}</button>)}</div><textarea rows={3} value={descriptionValue ?? ''} onChange={event => updateDescription(event.target.value)} placeholder={`${languageLabel[descriptionLanguage]} 설명을 입력하세요.`} /></div>
             <label>대표 보충영상<select value={draft.primary_video_id} onChange={event => setDraft({ ...draft, primary_video_id: event.target.value })}><option value="">연결하지 않음</option>{videos.filter(video => video.active).map(video => <option key={video.id} value={video.id}>{video.title} · {languageLabel[video.language]}</option>)}</select></label>
             <label className="catalog-check"><input type="checkbox" checked={draft.active} onChange={event => setDraft({ ...draft, active: event.target.checked })} />현재 사용하는 유형</label>
             <div className="catalog-savebar"><button type="submit" className="catalog-button primary" disabled={busy}>저장</button><button type="button" className="catalog-button dark" disabled={busy || !draft.id} onClick={() => saveType(true)}>저장 후 다음 미연결</button></div>
@@ -356,7 +357,7 @@ export default function WrongTypesPage() {
         <form onSubmit={saveVideo} className="catalog-form">
           <label>영상 제목 *<input value={videoDraft.title} onChange={event => setVideoDraft({ ...videoDraft, title: event.target.value })} required /></label>
           <label>영상 주소 *<input type="url" value={videoDraft.url} onChange={event => setVideoDraft({ ...videoDraft, url: event.target.value })} required placeholder="https://..." /></label>
-          <div className="catalog-row2"><label>재생시간(초)<input type="number" min="0" value={videoDraft.duration_seconds ?? ''} onChange={event => setVideoDraft({ ...videoDraft, duration_seconds: event.target.value ? Number(event.target.value) : null })} /></label><label>언어<select value={videoDraft.language} onChange={event => setVideoDraft({ ...videoDraft, language: event.target.value })}><option value="ko">한국어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></label></div>
+          <div className="catalog-row2"><label>재생시간(초)<input type="number" min="0" value={videoDraft.duration_seconds ?? ''} onChange={event => setVideoDraft({ ...videoDraft, duration_seconds: event.target.value ? Number(event.target.value) : null })} /></label><label>언어<select value={videoDraft.language} onChange={event => setVideoDraft({ ...videoDraft, language: event.target.value })}><option value="ko">한국어</option><option value="en">영어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></label></div>
           <div className="catalog-row2"><label>영상 서비스<select value={videoDraft.provider} onChange={event => setVideoDraft({ ...videoDraft, provider: event.target.value })}><option value="youtube">YouTube</option><option value="vimeo">Vimeo</option><option value="direct">직접 영상</option><option value="other">기타</option></select></label><label>공개 방식<select value={videoDraft.visibility} onChange={event => setVideoDraft({ ...videoDraft, visibility: event.target.value })}><option value="unlisted">일부 공개</option><option value="public">공개</option><option value="private">비공개</option></select></label></div>
           <label className="catalog-check"><input type="checkbox" checked={videoDraft.active} onChange={event => setVideoDraft({ ...videoDraft, active: event.target.checked })} />현재 사용하는 영상</label>
           {videoDraft.url && <a href={videoDraft.url} target="_blank" rel="noreferrer" className="catalog-preview-link">새 창에서 영상 확인</a>}
