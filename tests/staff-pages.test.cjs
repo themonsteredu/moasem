@@ -151,6 +151,10 @@ test('Consent editor keeps all language drafts and saves operator copy as a new 
     mounted.root.findAllByType('input')[1].props.onChange({ target: { value: 'Test title' } })
     mounted.root.findByType('textarea').props.onChange({ target: { value: 'Test body' } })
   })
+  for (const lang of ['vi', 'zh-CN']) {
+    await act(async () => mounted.root.findByProps({ id: `consent-tab-${lang}` }).props.onClick())
+    await act(async () => { mounted.root.findAllByType('input')[1].props.onChange({ target: { value: '' } }); mounted.root.findByType('textarea').props.onChange({ target: { value: '' } }) })
+  }
   await act(async () => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }))
   assert.deepEqual(writes, [{ label: 'Test copy', translations: { ko: { title: '시험 제목', body: '시험 본문' }, en: { title: 'Test title', body: 'Test body' } } }])
   assert.equal(mounted.root.findAllByType('input')[0].props.value, '')
@@ -191,4 +195,22 @@ test('Instructor cannot open consent document management', async () => {
   await mount(pages[6])
   assert.deepEqual(env.calls.map(call => call.url), ['/api/auth/session'])
   assert.deepEqual(env.redirects, ['/my-students'])
+})
+
+
+test('Four-language starter copy is filled but unresolved operator facts cannot be published', async () => {
+ environment(admin)
+ const calls=[]; const original=global.fetch
+ global.fetch=async (url,opts)=>{ if(opts?.method==='POST') calls.push(url); return original(url,opts) }
+ await mount(pages[6])
+ for(const lang of ['ko','en','vi','zh-CN']) {
+  await act(async()=>mounted.root.findByProps({id:`consent-tab-${lang}`}).props.onClick())
+  assert.ok(mounted.root.findByType('textarea').props.value.length>500)
+ }
+ await act(async()=>mounted.root.findByType('form').props.onSubmit({preventDefault(){}}))
+ assert.equal(calls.length,0)
+ assert.match(JSON.stringify(mounted.toJSON()),/실제 내용/)
+ const {consentDocumentInput}=require('../lib/guardian-consent.ts')
+ const {consentTemplate}=require('../lib/consent-template.ts')
+ assert.throws(()=>consentDocumentInput({label:'Draft',translations:consentTemplate()}))
 })
