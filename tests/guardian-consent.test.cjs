@@ -43,7 +43,7 @@ function req(path = '/', { method = 'GET', body, rawBody, auth = 'valid', origin
 }
 beforeEach(() => {
   account = { id: 'staff', auth_user_id: user.id, role: 'instructor', instructor_id: 'teacher', active: true, name: '강사', email: 'test@example.invalid' }
-  calls = []; queries = []; rpcError = null; dbError = null; rpcResult = { id: requestId, status: 'pending' }
+  calls = []; queries = []; rpcError = null; dbError = null; rpcResult = { id: requestId, status: 'pending', language: 'en' }
   tables = {
     programs: [{ id: programId, instructor_id: 'teacher' }],
     students: [{ id: studentId, program_id: programId, guardian_id: guardianId, active: true }],
@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 test('Consent documents require Korean copy, supported languages and nonempty operator text', () => {
   assert.deepEqual(consent.consentDocumentInput(input), input)
-  for (const value of [null, [], { ...input, translations: {} }, { ...input, translations: { ...input.translations, en: { title: 'x', body: 'x' } } }, { ...input, translations: { ko: { title: 'x', body: ' ' } } }]) {
+  for (const value of [null, [], { ...input, translations: {} }, { ...input, translations: { ...input.translations, fr: { title: 'x', body: 'x' } } }, { ...input, translations: { ko: { title: 'x', body: ' ' } } }]) {
     assert.throws(() => consent.consentDocumentInput(value), error => error.status === 400)
   }
 })
@@ -67,7 +67,7 @@ test('A 256-bit random link is hashed and independent links do not repeat', () =
 })
 test('Submission requires explicit affirmative choices and strips caller-supplied facts', () => {
   assert.deepEqual(consent.consentSubmission({ ...submission, consented_at: '1999-01-01', student_id: 'another', verification_method: 'phone_verified' }), submission)
-  for (const patch of [{ accepted: false }, { accepted: 'true' }, { is_legal_representative: false }, { signer_name: '' }, { language: 'en' }, { document_id: 'bad' }]) {
+  for (const patch of [{ accepted: false }, { accepted: 'true' }, { is_legal_representative: false }, { signer_name: '' }, { language: 'fr' }, { document_id: 'bad' }]) {
     assert.throws(() => consent.consentSubmission({ ...submission, ...patch }), error => error.status === 400)
   }
 })
@@ -98,8 +98,8 @@ test('Issuing a link uses verified staff, current student and server-generated t
   const response = await requests.POST(req('/', { method: 'POST', body: { student_id: studentId, document_id: documentId, guardian_id: 'other', staff_id: 'admin', language: 'ko', token, expires_at: '2099-01-01', url: 'https://foreign.example' } }))
   assert.equal(response.status, 201)
   const result = await response.json()
-  assert.match(result.path, /^\/consent\/[0-9a-f]{64}$/)
-  const rawToken = result.path.split('/').at(-1)
+  assert.match(result.path, /^\/consent\/[0-9a-f]{64}\?lang=en$/)
+  const rawToken = result.path.split('/').at(-1).split('?')[0]
   assert.notEqual(rawToken, token)
   assert.deepEqual(calls[0], { name: 'create_guardian_consent_request', args: { p_staff_id: account.id, p_student_id: studentId, p_document_id: documentId, p_token_hash: consent.consentTokenHash(rawToken) } })
   assert.ok(!JSON.stringify(result).includes(calls[0].args.p_token_hash))

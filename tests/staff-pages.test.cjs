@@ -16,6 +16,7 @@ const pages = [
   { name: '오답·영상', path: '/wrong-types', Component: require('../app/wrong-types/page.tsx').default, urls: ['/api/admin/wrong-types', '/api/admin/videos'] },
   { name: '강사 관리', path: '/instructors', Component: require('../app/instructors/page.tsx').default, urls: ['/api/admin/instructors'] },
   { name: '내 학생', path: '/my-students', Component: require('../app/my-students/page.tsx').default, urls: ['/api/admin/programs', '/api/admin/students'] },
+  { name: '보호자 동의서', path: '/consents', Component: require('../app/consents/page.tsx').default, urls: ['/api/admin/consent-documents'] },
 ]
 const originals = { fetch: global.fetch, window: global.window, sessionStorage: global.sessionStorage }
 let mounted
@@ -87,7 +88,7 @@ test('Blocked storage does not prevent login or list loading', async () => {
   assert.equal(env.calls.length, 5)
 })
 test('Public guardian and institution pages never request staff login', async () => {
-  for (const path of ['/report/example-token', '/institution/example-token']) {
+  for (const path of ['/report/example-token', '/institution/example-token', '/consent/example-token']) {
     const env = environment(null, 401)
     await mount({ path, Component: () => React.createElement('p', null, 'public report') })
     assert.deepEqual(env.calls, [])
@@ -127,4 +128,67 @@ test('Switching students clears selected wrong types and restores the new guardi
   assert.equal(mounted.root.findByProps({ className: 'report-type-picker' }).findByProps({ type: 'checkbox' }).props.checked, false)
   assert.ok(mounted.root.findAllByType('select').some(select => select.props.value === 'ko'))
   assert.equal(mounted.root.findAllByProps({ className: 'report-link' }).length, 0)
+})
+
+test('Consent editor keeps all language drafts and saves operator copy as a new English version', async () => {
+  environment(admin)
+  const fallback = global.fetch, writes = []
+  global.fetch = async (url, init) => {
+    if (url === '/api/admin/consent-documents' && init?.method === 'POST') {
+      const body = JSON.parse(init.body); writes.push(body)
+      return response(201, { item: { id: 'doc', ...body, created_at: '2026-09-05T12:00:00Z' } })
+    }
+    return fallback(url, init)
+  }
+  await mount(pages[6])
+  await act(async () => {
+    mounted.root.findAllByType('input')[0].props.onChange({ target: { value: 'Test copy' } })
+    mounted.root.findAllByType('input')[1].props.onChange({ target: { value: '시험 제목' } })
+    mounted.root.findByType('textarea').props.onChange({ target: { value: '시험 본문' } })
+  })
+  await act(async () => mounted.root.findByProps({ id: 'consent-tab-en' }).props.onClick())
+  await act(async () => {
+    mounted.root.findAllByType('input')[1].props.onChange({ target: { value: 'Test title' } })
+    mounted.root.findByType('textarea').props.onChange({ target: { value: 'Test body' } })
+  })
+  await act(async () => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }))
+  assert.deepEqual(writes, [{ label: 'Test copy', translations: { ko: { title: '시험 제목', body: '시험 본문' }, en: { title: 'Test title', body: 'Test body' } } }])
+  assert.equal(mounted.root.findAllByType('input')[0].props.value, '')
+  assert.match(JSON.stringify(mounted.toJSON()), /Test copy/)
+})
+
+for (const available of [true, false]) test(`Student consent panel uses guardian English and prevents duplicate issuance; copy available=${available}`, async () => {
+  const { StudentConsent } = require('../app/components/student-consent.tsx')
+  environment(instructor)
+  global.window.location.origin = 'https://moasem.example'
+  const fallback = global.fetch, writes = [], busy = []
+  const student = { id: 'test-student', name: 'Test pupil', is_under_14: true, guardian: { language: 'en' }, consent: { status: 'pending' } }
+  global.fetch = async (url, init) => {
+    if (url === '/api/admin/consent-documents') return response(200, { items: [{ id: 'test-document', label: 'Test document', translations: { ko: { title: '제목', body: '본문' }, ...(available ? { en: { title: 'Title', body: 'Body' } } : {}) } }] })
+    if (url.startsWith('/api/admin/guardian-consents')) {
+      if (init?.method === 'POST') { writes.push(JSON.parse(init.body)); await new Promise(resolve => setImmediate(resolve)); return response(201, { item: { language: 'en' }, path: `/consent/${'a'.repeat(64)}?lang=en` }) }
+      return response(200, { items: [] })
+    }
+    return fallback(url, init)
+  }
+  await mount({ path: '/my-students', Component: () => React.createElement(StudentConsent, { student, onClose() {}, async onChanged() {}, onBusy: value => busy.push(value) }) })
+  const issue = mounted.root.findAllByType('button').find(button => button.children.includes('동의 링크 만들기'))
+  assert.equal(issue.props.disabled, !available)
+  assert.equal(mounted.root.findAllByType('summary').length, 0, 'Instructor cannot edit age or language')
+  if (available) {
+    await act(async () => { await Promise.all([issue.props.onClick(), issue.props.onClick()]) })
+    assert.deepEqual(writes, [{ student_id: student.id, document_id: 'test-document' }])
+    assert.deepEqual(busy, [true, false])
+    assert.equal(mounted.root.findByProps({ readOnly: true }).props.value, `https://moasem.example/consent/${'a'.repeat(64)}?lang=en`)
+  } else {
+    assert.ok(mounted.root.findAllByProps({ className: 'field-help' }).some(node => node.children.join('').includes('영어 동의 문구가 아직 없습니다')))
+    assert.equal(writes.length, 0)
+  }
+})
+
+test('Instructor cannot open consent document management', async () => {
+  const env = environment(instructor)
+  await mount(pages[6])
+  assert.deepEqual(env.calls.map(call => call.url), ['/api/auth/session'])
+  assert.deepEqual(env.redirects, ['/my-students'])
 })

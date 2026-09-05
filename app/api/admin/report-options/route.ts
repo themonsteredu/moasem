@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     await assertStaff(request)
     const { data, error } = await getSupabaseAdmin().from('wrong_types')
-      .select('id,code,name,grade,unit,description_ko,description_vi,description_zh_cn,video_links:wrong_type_videos(is_primary,video:supplement_videos(id,title,url,language,active,visibility))')
+      .select('id,code,name,grade,unit,description_ko,description_en,description_vi,description_zh_cn,video_links:wrong_type_videos(is_primary,video:supplement_videos(id,title,url,language,active,visibility))')
       .eq('active', true).order('display_order').order('code')
     if (error) throw error
     const items = (data ?? []).map(item => {
