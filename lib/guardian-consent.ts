@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AccessError, assertProgramAccess, privateHeaders } from './admin-auth'
 import { getSupabaseAdmin } from './supabase-admin'
 import type { Staff } from './staff-types'
+import { supportedLanguages } from './languages'
 
 export const consentHeaders = { ...privateHeaders, 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow, noarchive' }
-export const consentLanguages = ['ko', 'vi', 'zh-CN'] as const
+export const consentLanguages = supportedLanguages
 export type ConsentLanguage = typeof consentLanguages[number]
 type Translation = { title: string; body: string }
 export type ConsentDocumentInput = { label: string; translations: Partial<Record<ConsentLanguage, Translation>> }

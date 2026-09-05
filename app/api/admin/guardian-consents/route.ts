@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const items = (data ?? []).map(({ guardian_id, guardian_phone, program_id, ...item }) => {
       const recipientChanged = guardian_id !== student.guardian_id || program_id !== student.program_id || guardian_phone !== guardian?.phone
       const linkStatus = item.revoked_at ? 'revoked' : new Date(item.expires_at).getTime() <= Date.now() ? 'expired' : recipientChanged || !student.active ? 'unavailable' : 'active'
-      return { ...item, recipient_changed: recipientChanged, link_status: linkStatus }
+      return { ...item, records: item.records ? Array.isArray(item.records) ? item.records : [item.records] : [], recipient_changed: recipientChanged, link_status: linkStatus }
     })
     return NextResponse.json({ items }, { headers: consentHeaders })
   } catch (error) { return consentError(error) }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     })
     if (error) throw error
     // Relative path prevents caller-controlled hosts; UI will resolve it on the app origin.
-    return NextResponse.json({ item: data, path: `/consent/${token}` }, { status: 201, headers: consentHeaders })
+    return NextResponse.json({ item: data, path: `/consent/${token}?lang=${encodeURIComponent(data.language)}` }, { status: 201, headers: consentHeaders })
   } catch (error) { return consentError(error) }
 }
 export async function DELETE(request: NextRequest) {

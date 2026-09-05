@@ -1,6 +1,6 @@
-export type ReportLanguage = 'ko' | 'vi' | 'zh-CN'
+export type ReportLanguage = import('./languages').SupportedLanguage
 export type ReportVideo = { id: string | null; title: string; url: string; language: string }
-export type ReportWrongType = { id: string; name: string; description_ko: string | null; description_vi: string | null; description_zh_cn: string | null }
+export type ReportWrongType = { id: string; name: string; description_ko: string | null; description_en?: string | null; description_vi: string | null; description_zh_cn: string | null }
 export type ReportResources = { version: 1; wrong_types: ReportWrongType[]; videos: ReportVideo[] }
 export type ReportOption = ReportWrongType & { code: string; grade: number; unit: string | null; video: ReportVideo | null }
 
@@ -23,7 +23,7 @@ export function uniqueVideos(videos: ReportVideo[]): ReportVideo[] {
 }
 
 export function typeDescription(type: ReportWrongType, language: string) {
-  return language === 'vi' ? type.description_vi : language === 'zh-CN' ? type.description_zh_cn : type.description_ko
+  return language === 'en' ? type.description_en : language === 'vi' ? type.description_vi : language === 'zh-CN' ? type.description_zh_cn : type.description_ko
 }
 
 // Also accepts older reports, which only stored one manually entered video URL.
