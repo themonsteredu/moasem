@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { reportResources, typeDescription, ReportResources } from '../../../lib/report-resources'
 
-type Report={language:string;headline:string|null;action_line:string|null;expires_at:string;student:{id:string;name:string;grade:number}|null;learning_log:{lesson_date:string;solved_count:number;wrong_count:number;wrong_type_summary:string|null;weekly_assignment:string|null;video_url:string|null}|null}
+type Report={resources?:ReportResources;language:string;headline:string|null;action_line:string|null;expires_at:string;student:{id:string;name:string;grade:number}|null;learning_log:{lesson_date:string;solved_count:number;wrong_count:number;wrong_type_summary:string|null;weekly_assignment:string|null;video_url:string|null}|null}
 
 const labels={
   ko:{today:'오늘 결과',solved:'푼 문제',wrong:'틀린 문제',type:'어려웠던 유형',week:'이번 주 과제',video:'같이 볼 영상',watch:'영상 보기',grade:(n:number)=>`${n}학년`,expires:'이 링크는 다음 날짜까지 볼 수 있습니다.'},
@@ -14,11 +15,6 @@ const koLabels=labels.ko
 
 function SectionTitle({primary,korean,language,number}:{primary:string;korean:string;language:string;number:string}){
   return <h2><span className="guardian-section-number" aria-hidden="true">{number}</span><span>{primary}{language!=='ko'&&<small className="guardian-korean" lang="ko">{korean}</small>}</span></h2>
-}
-
-function safeVideoUrl(value:string|null|undefined){
-  if(!value)return null
-  try{const url=new URL(value);return ['http:','https:'].includes(url.protocol)?url.href:null}catch{return null}
 }
 
 export default function ReportPage({params}:{params:{token:string}}){
@@ -37,17 +33,21 @@ export default function ReportPage({params}:{params:{token:string}}){
   const student=Array.isArray(report.student)?report.student[0]:report.student
   const grade=student?.grade??0
   const expires=new Date(report.expires_at).toLocaleDateString(language==='vi'?'vi-VN':language==='zh-CN'?'zh-CN':'ko-KR')
-  const videoUrl=safeVideoUrl(log?.video_url)
+  const resources=reportResources(report.resources,log?.video_url)
   return <main className="guardian-page" lang={language}>
     <div className="guardian-brand"><strong>MOASEM</strong><span>{log?.lesson_date||''}</span></div>
     <header className="guardian-header"><h1>{student?.name} · {l.grade(grade)}</h1>{language!=='ko'&&<small className="guardian-korean" lang="ko">{student?.name} · {koLabels.grade(grade)}</small>}{report.headline&&<p className="guardian-headline">{report.headline}</p>}</header>
     <section className="guardian-section">
       <SectionTitle number="01" primary={l.today} korean={koLabels.today} language={language}/>
       <div className="guardian-results"><div><small>{l.solved}</small>{language!=='ko'&&<span className="guardian-korean" lang="ko">{koLabels.solved}</span>}<strong>{log?.solved_count??0}</strong></div><div><small>{l.wrong}</small>{language!=='ko'&&<span className="guardian-korean" lang="ko">{koLabels.wrong}</span>}<strong className="wrong-count">{log?.wrong_count??0}</strong></div></div>
+      {resources.wrong_types.length>0&&<div className="guardian-type"><b>{l.type}{language!=='ko'&&<small className="guardian-korean" lang="ko">{koLabels.type}</small>}</b><ul className="guardian-types">{resources.wrong_types.map(type=>{
+        const description=typeDescription(type,language)
+        return <li key={type.id}>{language==='ko'?<><strong>{type.name}</strong>{description&&<p>{description}</p>}</>:description?<><p>{description}</p><small className="guardian-korean" lang="ko">{type.name}</small></>:<span lang="ko">{type.name}</span>}</li>
+      })}</ul></div>}
       {log?.wrong_type_summary&&<p className="guardian-type"><b>{l.type}{language!=='ko'&&<small className="guardian-korean" lang="ko">{koLabels.type}</small>}</b>{log.wrong_type_summary}</p>}
     </section>
     <section className="guardian-section"><SectionTitle number="02" primary={l.week} korean={koLabels.week} language={language}/><p className="guardian-assignment">{log?.weekly_assignment||'—'}</p></section>
-    <section className="guardian-section"><SectionTitle number="03" primary={l.video} korean={koLabels.video} language={language}/>{videoUrl?<a className="guardian-video" href={videoUrl} target="_blank" rel="noopener noreferrer"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></svg><span>{l.watch}</span><span aria-hidden="true" style={{flex:0}}>↗</span></a>:<p className="guardian-assignment">—</p>}{report.action_line&&<div className="guardian-action">{report.action_line}</div>}</section>
+    <section className="guardian-section"><SectionTitle number="03" primary={l.video} korean={koLabels.video} language={language}/>{resources.videos.length?<div className="guardian-videos">{resources.videos.map((video,index)=><a key={video.url} className="guardian-video" href={video.url} target="_blank" rel="noopener noreferrer"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></svg><span>{l.watch}{resources.videos.length>1?` ${index+1}`:''}{video.title&&<small lang={video.language}>{video.title}</small>}</span><span aria-hidden="true" style={{flex:0}}>↗</span></a>)}</div>:<p className="guardian-assignment">—</p>}{report.action_line&&<div className="guardian-action">{report.action_line}</div>}</section>
     <p className="guardian-expiry">{l.expires} {expires}{language!=='ko'&&<span className="guardian-korean" lang="ko">{koLabels.expires} {new Date(report.expires_at).toLocaleDateString('ko-KR')}</span>}</p>
   </main>
 }

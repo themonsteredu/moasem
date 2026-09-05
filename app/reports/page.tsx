@@ -4,6 +4,8 @@ import { FormEvent, useState } from 'react'
 import { apiFetch, jsonHeaders as headers } from '../../lib/staff-client'
 import { useStaffData } from '../components/staff-session'
 import { StaffAccess, Icon, Notice, Workspace } from '../components/workspace'
+import { ReportTypePicker } from '../components/report-type-picker'
+import type { ReportOption } from '../../lib/report-resources'
 
 type Student={id:string;name:string;grade:number;program:{id:string;name:string;institution:{id:string;name:string}|null}|null;guardian:{id:string;name:string|null;phone:string;language:string}|null}
 const languageLabel:Record<string,string>={ko:'한국어',vi:'베트남어','zh-CN':'중국어 간체'}
@@ -11,6 +13,8 @@ function localDate(){const d=new Date();return `${d.getFullYear()}-${String(d.ge
 
 export default function ReportsPage(){
   useStaffData(loadStudents)
+  const [options,setOptions]=useState<ReportOption[]>([])
+  const [selectedTypeIds,setSelectedTypeIds]=useState<string[]>([])
   const [students,setStudents]=useState<Student[]>([])
   const [selectedStudentId,setSelectedStudentId]=useState('')
   const [language,setLanguage]=useState('ko')
@@ -22,16 +26,24 @@ export default function ReportsPage(){
   const selectedStudent=students.find(student=>student.id===selectedStudentId)
   async function loadStudents(){
     setBusy(true)
-    try{const response=await apiFetch('/api/admin/students',{headers,cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'학생을 불러오지 못했습니다.');setStudents(data.items??[]);setConnected(true);setMessage('')}
-    catch(error){setConnected(false);setStudents([]);selectStudent('');setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
+    try{
+      const [studentsResponse,optionsResponse]=await Promise.all([apiFetch('/api/admin/students',{headers,cache:'no-store'}),apiFetch('/api/admin/report-options',{cache:'no-store'})])
+      const [studentsData,optionsData]=await Promise.all([studentsResponse.json(),optionsResponse.json()])
+      if(!studentsResponse.ok)throw new Error(studentsData.error||'학생을 불러오지 못했습니다.')
+      if(!optionsResponse.ok)throw new Error(optionsData.error||'오답 유형을 불러오지 못했습니다.')
+      setStudents(studentsData.items??[]);setOptions(optionsData.items??[]);setConnected(true);setMessage('')
+      const currentIds=new Set((optionsData.items??[]).map((item:ReportOption)=>item.id))
+      setSelectedTypeIds(ids=>ids.filter(id=>currentIds.has(id)))
+    }
+    catch(error){setConnected(false);setStudents([]);setOptions([]);selectStudent('');setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
     finally{setBusy(false)}
   }
-  function selectStudent(id:string){setSelectedStudentId(id);setLanguage(students.find(student=>student.id===id)?.guardian?.language||'ko');setReportUrl('');setMessage('')}
+  function selectStudent(id:string){setSelectedStudentId(id);setSelectedTypeIds([]);setLanguage(students.find(student=>student.id===id)?.guardian?.language||'ko');setReportUrl('');setMessage('')}
   async function submit(event:FormEvent<HTMLFormElement>){
     event.preventDefault();if(saving)return
     const values=new FormData(event.currentTarget)
     setSaving(true);setMessage('');setReportUrl('')
-    try{const response=await apiFetch('/api/admin/learning-reports',{method:'POST',headers,body:JSON.stringify({...Object.fromEntries(values.entries()),student_id:selectedStudentId,solved_count:Number(values.get('solved_count')),wrong_count:Number(values.get('wrong_count')),language})});const data=await response.json();if(!response.ok)throw new Error(data.error||'리포트를 만들지 못했습니다.');setReportUrl(`${location.origin}/report/${data.token}`);setMessage('보호자 리포트를 만들었습니다. 링크를 복사해 전달해 주세요.')}
+    try{const response=await apiFetch('/api/admin/learning-reports',{method:'POST',headers,body:JSON.stringify({...Object.fromEntries(values.entries()),student_id:selectedStudentId,solved_count:Number(values.get('solved_count')),wrong_count:Number(values.get('wrong_count')),wrong_type_ids:selectedTypeIds,language})});const data=await response.json();if(!response.ok)throw new Error(data.error||'리포트를 만들지 못했습니다.');setReportUrl(`${location.origin}/report/${data.token}`);setMessage('보호자 리포트를 만들었습니다. 링크를 복사해 전달해 주세요.')}
     catch(error){setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
     finally{setSaving(false)}
   }
@@ -48,9 +60,9 @@ export default function ReportsPage(){
           <fieldset disabled={saving} className="report-form-fields">
             <div className="form-columns three"><label className="field"><span>수업일 *</span><input type="date" name="lesson_date" defaultValue={localDate()} required/></label><label className="field"><span>푼 문제 수 *</span><input type="number" name="solved_count" min="0" defaultValue="0" required/></label><label className="field"><span>틀린 문제 수 *</span><input type="number" name="wrong_count" min="0" defaultValue="0" required/></label></div>
             <div className="form-section-title"><span>2</span>학습 결과와 다음 과제</div>
-            <label className="field"><span>어려웠던 유형</span><input name="wrong_type_summary" placeholder="예: 받아올림이 있는 덧셈"/></label>
+            <ReportTypePicker options={options} selectedIds={selectedTypeIds} onChange={setSelectedTypeIds} disabled={saving||busy} loaded={connected}/><label className="field"><span>추가로 전할 학습 내용</span><input name="wrong_type_summary" placeholder="유형 목록에 없는 내용은 직접 적어 주세요"/></label>
             <label className="field"><span>이번 주 과제</span><input name="weekly_assignment" placeholder="예: 교재 24~27쪽, 하루 두 쪽씩"/></label>
-            <label className="field"><span>함께 볼 영상</span><input name="video_url" type="url" placeholder="영상 주소 https://…"/></label>
+            <label className="field"><span>추가 영상 주소 · 선택 입력</span><input name="video_url" type="url" placeholder="자동 연결 영상 외에 더 보낼 영상이 있다면 입력하세요"/></label>
             <div className="form-section-title"><span>3</span>보호자에게 전할 말</div>
             <label className="field"><span>보호자 안내 언어</span><select value={language} onChange={event=>setLanguage(event.target.value)}><option value="ko">한국어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></label>
             <p className="field-help">아래 안내는 선택한 보호자 언어로 직접 작성해 주세요. 입력한 문장이 그대로 전달됩니다.</p>
@@ -58,7 +70,7 @@ export default function ReportsPage(){
             <label className="field"><span>가정에서 함께할 일</span><textarea name="action_line" rows={2} placeholder={`${languageLabel[language]}로 보호자가 도와줄 행동 한 가지`}/></label>
             <details className="form-details"><summary>강사 내부 메모 <span className="meta">· 보호자에게 보이지 않아요</span></summary><label className="field"><span className="sr-only">강사 내부 메모</span><textarea name="teacher_note" rows={3} placeholder="다음 수업에 참고할 내용을 기록하세요."/></label></details>
           </fieldset>
-          <button className="button button-primary full-width" disabled={!selectedStudentId||saving}><Icon name="report" size={18}/>{saving?'만드는 중…':'리포트 링크 만들기'}</button>
+          <button className="button button-primary full-width" disabled={!connected||busy||!selectedStudentId||saving}><Icon name="report" size={18}/>{saving?'만드는 중…':'리포트 링크 만들기'}</button>
         </form>
       </section>
       <aside>
