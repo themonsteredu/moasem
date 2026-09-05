@@ -113,3 +113,17 @@
 .consent-error p{margin-bottom:12px}
 @media(max-width:960px){.consent-editor-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.workspace-nav[data-role=admin]{grid-template-columns:repeat(3,minmax(0,1fr))}.workspace:has(.workspace-nav[data-role=admin]) .workspace-content{padding-bottom:165px}.workspace-nav[data-role=admin] a{min-height:44px;flex-direction:row;gap:6px}.consent-editor,.consent-panel-body{padding:19px 18px}.consent-document-list{padding:0 18px 18px}.consent-issue{display:grid;grid-template-columns:1fr}.consent-panel-summary .text-button{margin-left:0}.consent-public.guardian-page{padding:23px 20px 30px}.consent-public .guardian-header h1{font-size:23px}.consent-document{font-size:16px}.consent-document h2{font-size:19px}.consent-korean-copy{padding:17px}.consent-confirm{font-size:15px}}
+
+/* Personal student learning records */
+.student-record-link { text-decoration: underline; text-underline-offset: 4px; }
+.progress-current { border-top: 3px solid #e87838; }
+.progress-assignment { background: #faf7f3; padding: 16px 20px; border-radius: 8px; }
+.progress-assignment p, .progress-detail p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.progress-fields { border: 0; padding: 0; margin: 20px 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.progress-wide { grid-column: 1/-1; }
+.progress-history article { display: grid; grid-template-columns: 145px minmax(0,1fr); gap: 24px; padding: 24px 0; border-top: 1px solid #e2e8f0; }
+.progress-date { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.progress-detail h3 { margin: 0 0 10px; }
+.progress-detail p strong { display: block; margin-bottom: 5px; font-size: 13px; color: #64748b; }
+.progress-history { margin-bottom: 24px; }
+@media(max-width:640px) { .progress-fields { grid-template-columns: minmax(0,1fr); } .progress-history article { grid-template-columns: minmax(0,1fr); gap: 12px; } .progress-date { flex-direction: row; align-items: center; } }
