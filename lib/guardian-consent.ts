@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AccessError, assertProgramAccess, privateHeaders } from './admin-auth'
 import { getSupabaseAdmin } from './supabase-admin'
 import type { Staff } from './staff-types'
+import { hasConsentPlaceholders } from './consent-template'
 import { supportedLanguages } from './languages'
 
 export const consentHeaders = { ...privateHeaders, 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow, noarchive' }
@@ -31,6 +32,7 @@ export function consentDocumentInput(value: unknown): ConsentDocumentInput {
   for (const [language, value] of Object.entries(source)) {
     if (!consentLanguages.includes(language as ConsentLanguage)) throw new AccessError(400, '지원하는 언어를 선택해 주세요.')
     const translation = object(value)
+    if (typeof translation.body === 'string' && hasConsentPlaceholders(translation.body)) throw new AccessError(400, '운영 주체·문의 연락처·보관 기간·처리 위탁 안내를 실제 내용으로 채워 주세요.')
     translations[language as ConsentLanguage] = { title: inputText(translation.title, 200), body: inputText(translation.body, 20000) }
   }
   return { label: inputText(body.label, 100), translations }

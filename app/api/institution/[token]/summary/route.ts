@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
 
     const { data: programs, error: programError } = await supabase
       .from('programs')
-      .select('id,name,starts_on,ends_on,status')
+      .select('id,name,starts_on,ends_on,status,zoom_join_url')
       .eq('institution_id', institution.id)
       .order('starts_on', { ascending: false })
 

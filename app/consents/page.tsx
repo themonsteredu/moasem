@@ -6,14 +6,16 @@ import { languageLabels, supportedLanguages, SupportedLanguage } from '../../lib
 import { useStaffData } from '../components/staff-session'
 import { EmptyState, Notice, StaffAccess, Workspace } from '../components/workspace'
 
+import { consentTemplate, consentTemplateLabel, hasConsentPlaceholders } from '../../lib/consent-template'
+
 type Translation = { title: string; body: string }
 type Document = { id: string; label: string; translations: Partial<Record<SupportedLanguage, Translation>>; created_at: string }
 const blank = (): Record<SupportedLanguage, Translation> => ({ ko: { title: '', body: '' }, en: { title: '', body: '' }, vi: { title: '', body: '' }, 'zh-CN': { title: '', body: '' } })
 
 export default function ConsentDocumentsPage() {
   const [items, setItems] = useState<Document[]>([])
-  const [label, setLabel] = useState('')
-  const [draft, setDraft] = useState(blank)
+  const [label, setLabel] = useState(consentTemplateLabel)
+  const [draft, setDraft] = useState(consentTemplate)
   const [language, setLanguage] = useState<SupportedLanguage>('ko')
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -36,6 +38,7 @@ export default function ConsentDocumentsPage() {
     const translations: Document['translations'] = {}
     for (const lang of supportedLanguages) {
       const entry = draft[lang]
+      if (hasConsentPlaceholders(entry.body)) { setLanguage(lang); setMessage('운영 주체·문의 연락처·보관 기간·처리 위탁 안내를 실제 내용으로 채워 주세요.'); return }
       if (lang === 'ko' || entry.title.trim() || entry.body.trim()) {
         if (!entry.title.trim() || !entry.body.trim()) { setLanguage(lang); setMessage(`${languageLabels[lang]} 제목과 본문을 모두 입력해 주세요.`); return }
         translations[lang] = { title: entry.title.trim(), body: entry.body.trim() }
@@ -61,6 +64,7 @@ export default function ConsentDocumentsPage() {
     <div className="consent-editor-grid">
       <section className="surface">
         <div className="section-heading"><div><span className="eyebrow">언어별 안내</span><h2>새 동의 문구</h2></div></div>
+        <p className="field-help">네 언어 기본 문구를 준비했습니다. OPERATOR는 실제 개인정보 처리 주체, CONTACT는 문의 연락처, RETENTION은 확정한 보관 기간으로 바꿔 주세요. PROCESSING_NOTICE에는 기관과의 위탁 관계, 현재 사용하는 저장·호스팅 서비스와 국외 이전 해당 사항을 확인해 넣습니다.</p>
         <form className="consent-editor" onSubmit={save}>
           <fieldset disabled={saving}>
             <label className="field"><span>문구 이름 *</span><input value={label} onChange={event => setLabel(event.target.value)} maxLength={100} required placeholder="예: 2026년 수학 프로그램 보호자 동의"/></label>

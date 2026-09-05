@@ -74,3 +74,14 @@ aiapp 프로젝트의 `moasem` 스키마만 추가했습니다.
 추가 후보는 필리핀어(타갈로그어)·러시아어·몽골어, 이후 우즈베크어·태국어·캄보디아어입니다. [다누리의 지원 언어](https://www.kihf.or.kr/web/lay1/bbs/S1T838C105/A/15/view.do?article_seq=1115897)를 참고한 운영 제안으로, 확정 우선순위는 참여 기관 보호자의 읽기 언어 수요로 정합니다. 국적만으로 선호 언어를 결정하지 않습니다. 영어 외 후보 언어는 아직 선택 목록에 추가하지 않았습니다.
 
 구현 기준 문서: [Supabase 데이터베이스 함수](https://supabase.com/docs/guides/database/functions), [역할별 접근 권한](https://supabase.com/docs/guides/database/postgres/roles).
+
+## 2026-09-06 문구 작성 요청 반영
+
+사용자가 네 언어 문구 작성까지 요청하여 `lib/consent-template.ts`에 한국어·영어·베트남어·중국어 간체 기본 초안을 작성하고 기존 관리자 편집기에 기본으로 채웠다. 기존 ‘사용자 제공 문구만’ 제한은 이 명시적 요청으로 변경한다.
+
+실제 운영 주체(OPERATOR), 권리 행사 연락처(CONTACT), 확정 보관 기간(RETENTION), 기관과의 위탁 관계 및 현재 호스팅/저장 서비스의 위탁·국외 이전 고지(PROCESSING_NOTICE)는 확인 전 자리표시자로 남겼다. 화면과 서버 모두 해당 표시가 남은 문구 게시를 차단한다. 기존 게시 문구·접수 기록은 변경하지 않았다.
+
+이는 기본 수집·이용 동의 초안이다. 별도 동의가 필요한 제공/국외 이전/선택 항목을 하나의 동의에 묶어 처리하지 않는다. 법정대리인 확인은 현재 자기 확인 방식이며 동의서만으로 본인 확인이 추가 구현되는 것은 아니다. 보관 기간 확정 후 실제 삭제 절차도 연결해야 한다. 외국어 문구는 작성 초안으로 최종 운영 검토가 필요하다.
+
+참고: https://www.law.go.kr/LSW//lsLawLinkInfo.do?chrClsCd=010202&lsId=011357&lsJoLnkSeq=900078586&print=print
+아동 개인정보: https://www.law.go.kr/LSW//lsLinkCommonInfo.do?ancYnChk=&chrClsCd=010202&lsJoLnkSeq=1029334873
