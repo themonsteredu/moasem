@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "work/report-video-linking": false,
-      "work/report-alimtalk": false
+      "work/report-alimtalk": false,
+      "work/guardian-consent-foundation": false
     }
   }
 }
