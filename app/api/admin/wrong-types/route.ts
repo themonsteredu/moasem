@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
       .from('wrong_types')
-      .select('id,code,name,grade,semester,domain,unit,description_ko,description_vi,description_zh_cn,display_order,active,video_links:wrong_type_videos(is_primary,priority,video:supplement_videos(id,title,url,duration_seconds,language,active))')
+      .select('id,code,name,grade,semester,domain,unit,description_ko,description_en,description_vi,description_zh_cn,display_order,active,video_links:wrong_type_videos(is_primary,priority,video:supplement_videos(id,title,url,duration_seconds,language,active))')
       .order('display_order', { ascending: true })
       .order('code', { ascending: true })
 
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       domain: optionalText(body.domain),
       unit: optionalText(body.unit),
       description_ko: optionalText(body.description_ko),
+      description_en: optionalText(body.description_en),
       description_vi: optionalText(body.description_vi),
       description_zh_cn: optionalText(body.description_zh_cn),
       display_order: Number.isInteger(Number(body.display_order)) ? Number(body.display_order) : 0,
