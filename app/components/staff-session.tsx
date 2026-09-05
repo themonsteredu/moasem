@@ -13,7 +13,7 @@ export function StaffProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
-    if (!protectedPaths.includes(pathname)) return
+    if (!protectedPaths.includes(pathname) && !pathname.startsWith('/students/')) return
     let alive = true
     setStaff(null); setError('')
     try { sessionStorage.removeItem('moasem-admin-key') } catch { /* Optional old key cleanup. */ }

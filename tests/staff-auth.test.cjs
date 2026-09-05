@@ -386,3 +386,24 @@ for (const saveFails of [false, true]) test(`Notification send uses server recip
     for (const [key, value] of Object.entries(oldEnv)) if (value === undefined) delete process.env[key]; else process.env[key] = value
   }
 })
+
+const progressRoute = require('../app/api/admin/students/[id]/progress/route.ts')
+const progressContext = { params: { id: studentId } }
+const progressBody = { entry_id: studentId, lesson_date: '2026-09-01', book: '수학', unit: '', pages: '', next_assignment: '', learned: '', difficulties: '', teacher_note: '' }
+test('Progress endpoints reject unauthenticated reads and cross-origin writes before RPC', async () => {
+ assert.equal((await progressRoute.GET(new NextRequest('https://moasem.example/api/admin/students/'+studentId+'/progress'), progressContext)).status, 401)
+ assert.equal((await progressRoute.POST(new NextRequest('https://moasem.example/api/admin/students/'+studentId+'/progress', { method: 'POST', headers: { cookie: 'moasem-access=valid', origin: 'https://foreign.example' }, body: JSON.stringify(progressBody) }), progressContext)).status, 403)
+ assert.equal(rpcCalls.length, 0)
+})
+test('Progress saves use verified staff ID and route student ID, never supplied role or identity', async () => {
+ const r = await progressRoute.POST(req('/api/admin/students/'+studentId+'/progress', { method: 'POST', body: { ...progressBody, staff_id: 'attacker', student_id: 'other', role: 'admin' } }), progressContext)
+ assert.equal(r.status, 201)
+ assert.equal(rpcCalls[0].args.p_staff_id, account.id)
+ assert.equal(rpcCalls[0].args.p_student_id, studentId)
+ assert.equal(rpcCalls[0].args.p_input.staff_id, undefined)
+})
+test('Progress API maps database scope denial and rejects malformed page offsets', async () => {
+ rpcError = { message: 'PROGRAM_ACCESS_DENIED' }
+ assert.equal((await progressRoute.GET(req('/api/admin/students/'+studentId+'/progress'), progressContext)).status, 403)
+ assert.equal((await progressRoute.GET(req('/api/admin/students/'+studentId+'/progress?offset=-1'), progressContext)).status, 400)
+})
