@@ -8,7 +8,11 @@ export async function GET() {
     const { count, error } = await getSupabaseAdmin().from('staff_accounts').select('id', { count: 'exact', head: true }).eq('role', 'admin')
     if (error) throw error
     return NextResponse.json({ needs_setup: count === 0 }, { headers: privateHeaders })
-  } catch {
+  } catch (error) {
+    // Log configuration names and error codes only; never log credentials or user data.
+    const missing = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'].filter(key => !process.env[key])
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown'
+    console.error('MOASEM staff setup unavailable', { missing_configuration: missing, database_error_code: code })
     return NextResponse.json({ error: '계정 준비 상태를 확인하지 못했습니다.' }, { status: 503, headers: privateHeaders })
   }
 }
