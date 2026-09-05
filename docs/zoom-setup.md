@@ -28,3 +28,7 @@ https://developers.zoom.us/docs/build-flow/quick-start-guide/
 https://developers.zoom.us/docs/meeting-sdk/get-credentials/
 https://developers.zoom.us/docs/meeting-sdk/auth/
 https://developers.zoom.us/docs/meeting-sdk/web/component-view/
+
+
+## 현재 적용: 무료 초대 링크 방식
+수업·출석에서 프로그램 선택 → Zoom 참가자 초대 링크 붙여넣기 → 링크 저장 → 줌 수업 입장. 기관 조회 화면에서도 입장할 수 있습니다. 강사는 Zoom 호스트 계정에서 회의를 시작합니다. 앱 내부 영상과 자동 이름 입력·입퇴장 추적은 제공하지 않습니다. 대면/줌을 선택하고 학생 불러오기 후 출석을 직접 확인·저장합니다. 두 기록은 같은 날짜에도 분리됩니다. 링크 클릭은 출석으로 처리하지 않습니다. Basic 회의는 최대 40분이며 결제 기능이나 유료 연동은 추가하지 않았습니다.

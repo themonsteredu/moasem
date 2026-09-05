@@ -32,7 +32,7 @@ export default function MyStudentsPage() {
   }
   const consentStudent = students.find(student => student.id === consentStudentId)
   const visible = students.filter(student => !programId || student.program?.id === programId)
-  return <Workspace current="/my-students" title="내 학생" description="담당 프로그램의 학생을 확인하고 수업을 준비하세요." action={<div className="access-controls"><a className="button" href="/attendance">대면 출석</a><a className="button button-primary" href="/reports">리포트 작성</a></div>}>
+  return <Workspace current="/my-students" title="내 학생" description="담당 프로그램의 학생을 확인하고 수업을 준비하세요." action={<div className="access-controls"><a className="button" href="/attendance">수업·출석</a><a className="button button-primary" href="/reports">리포트 작성</a></div>}>
     <StaffAccess onLoad={load} busy={busy || consentBusy}/>
     <section className="surface">
       <div className="section-heading"><div><span className="eyebrow">함께하는 수업</span><h2>{loaded ? `담당 프로그램 ${programs.length}개 · 학생 ${students.length}명` : '담당 학생을 불러옵니다'}</h2></div></div>

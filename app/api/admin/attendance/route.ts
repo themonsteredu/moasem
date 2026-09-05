@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assertStaff, assertProgramAccess, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
+import { attendanceType } from '@/lib/zoom-link'
+
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
@@ -9,6 +11,7 @@ export async function GET(request: NextRequest) {
     const staff = await assertStaff(request)
     const programId = request.nextUrl.searchParams.get('program_id')
     const sessionDate = request.nextUrl.searchParams.get('session_date')
+    const sessionType = attendanceType(request.nextUrl.searchParams.get('session_type'))
     if (!programId || !sessionDate) {
       return NextResponse.json({ error: '프로그램과 수업일을 선택하세요.' }, { status: 400 })
     }
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin()
     const [{ data: students, error: studentError }, { data: attendance, error: attendanceError }] = await Promise.all([
       supabase.from('students').select('id,name,grade,student_number').eq('program_id', programId).eq('active', true).order('name'),
-      supabase.from('attendance').select('id,student_id,status,note').eq('program_id', programId).eq('session_date', sessionDate).eq('session_type', 'in_person'),
+      supabase.from('attendance').select('id,student_id,status,note').eq('program_id', programId).eq('session_date', sessionDate).eq('session_type', sessionType),
     ])
 
     if (studentError) throw studentError
@@ -32,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_SESSION_TYPE') return NextResponse.json({ error: '대면 또는 줌 수업을 선택하세요.' }, { status: 400 })
     const denied = authErrorResponse(error)
     if (denied) return denied
     return NextResponse.json({ error: '출석 정보를 불러오지 못했습니다.' }, { status: 500 })
@@ -44,6 +48,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const programId = String(body.program_id ?? '')
     const sessionDate = String(body.session_date ?? '')
+    const sessionType = attendanceType(body.session_type)
     const records = Array.isArray(body.records) ? body.records : []
 
     if (!programId || !sessionDate || !records.length) {
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
         program_id: programId,
         student_id: record.student_id,
         session_date: sessionDate,
-        session_type: 'in_person',
+        session_type: sessionType,
         status: record.status,
         note: record.note || null,
         updated_at: new Date().toISOString(),
@@ -86,6 +91,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_SESSION_TYPE') return NextResponse.json({ error: '대면 또는 줌 수업을 선택하세요.' }, { status: 400 })
     const denied = authErrorResponse(error)
     if (denied) return denied
     if (error instanceof Error && error.message === 'INVALID_STATUS') {

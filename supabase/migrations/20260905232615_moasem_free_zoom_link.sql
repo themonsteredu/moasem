@@ -1,0 +1,1 @@
+alter table moasem.programs add column zoom_join_url text check (zoom_join_url is null or (length(zoom_join_url) <= 2048 and zoom_join_url ~ '^https://([a-z0-9-]+\.)*zoom\.us/j/[0-9]{9,11}(\?pwd=[^#&]*)?$'));
