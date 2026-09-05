@@ -1,42 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, assertStaff, AccessError, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    const staff = await assertStaff(request)
     const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
+    let query = supabase
       .from('programs')
       .select('id,name,starts_on,ends_on,week_count,status,in_person_weekdays,zoom_weekdays,zoom_meeting_number,institution:institutions(id,name),instructor:instructors(id,name)')
       .order('created_at', { ascending: false })
+    if (staff.role === 'instructor') query = query.eq('instructor_id', staff.instructor_id!)
+    const { data, error } = await query
 
     if (error) throw error
     return NextResponse.json({ items: data ?? [] })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '프로그램 목록을 불러오지 못했습니다.' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const supabase = getSupabaseAdmin()
 
-    let instructorId: string | null = null
-    const instructorName = String(body.instructor_name ?? '').trim()
-    if (instructorName) {
-      const { data: instructor, error: instructorError } = await supabase
-        .from('instructors')
-        .insert({ name: instructorName, phone: body.instructor_phone || null })
-        .select('id')
-        .single()
-      if (instructorError) throw instructorError
-      instructorId = instructor.id
+    const instructorId = body.instructor_id || null
+    if (instructorId) {
+      const { data: instructor, error } = await supabase.from('staff_accounts')
+        .select('id').eq('instructor_id', instructorId).eq('role', 'instructor').eq('active', true).maybeSingle()
+      if (error) throw error
+      if (!instructor) throw new AccessError(400, '사용 중인 강사를 선택하세요.')
     }
 
     const { data, error } = await supabase
@@ -59,9 +58,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ item: data }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '프로그램을 만들지 못했습니다.' }, { status: 500 })
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 const privateHeaders = { 'Cache-Control': 'private, no-store, max-age=0' }
@@ -9,9 +9,11 @@ function optionalText(value: unknown) {
   return text || null
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const rows = Array.isArray(body.items) ? body.items : []
 
@@ -59,6 +61,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ imported: data?.length ?? items.length }, { headers: privateHeaders })
   } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401, headers: privateHeaders })
     }

@@ -1,29 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, assertStaff, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    const staff = await assertStaff(request)
     const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
+    let query = supabase
       .from('students')
-      .select('id,name,grade,student_number,active,program:programs(id,name,institution:institutions(id,name)),guardian:guardians(id,name,phone,language)')
+      .select('id,name,grade,student_number,active,program:programs!inner(id,name,institution:institutions(id,name)),guardian:guardians(id,name,phone,language)')
       .order('created_at', { ascending: false })
+    if (staff.role === 'instructor') query = query.eq('program.instructor_id', staff.instructor_id!)
+    const { data, error } = await query
 
     if (error) throw error
     return NextResponse.json({ items: data ?? [] })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '학생 목록을 불러오지 못했습니다.' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const supabase = getSupabaseAdmin()
 
@@ -63,9 +66,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ item: student }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '학생을 등록하지 못했습니다.' }, { status: 500 })
   }
 }

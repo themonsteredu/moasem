@@ -1,6 +1,8 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
+import { SessionGate, useStaff, logout } from './staff-session'
+import { staffHome } from '../../lib/staff-types'
 
 type IconName = 'overview' | 'attendance' | 'report' | 'video' | 'arrow' | 'plus' | 'lock' | 'check' | 'people'
 const paths: Record<IconName, ReactNode> = {
@@ -21,35 +23,45 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 const nav = [
   { href: '/', title: '기관·학생 관리', icon: 'overview' as const },
+  { href: '/instructors', title: '강사 관리', icon: 'people' as const },
   { href: '/attendance', title: '대면 출석', icon: 'attendance' as const },
   { href: '/reports', title: '보호자 리포트', icon: 'report' as const },
   { href: '/wrong-types', title: '오답·보충영상', icon: 'video' as const },
 ]
 
 export function Workspace({ current, title, description, action, children }: { current: string; title: string; description: string; action?: ReactNode; children: ReactNode }) {
-  return <div className="workspace">
+  const { staff } = useStaff()
+  const menu = staff?.role === 'instructor' ? [{ href: '/my-students', title: '내 학생', icon: 'people' as const }, ...nav.filter(item => ['/attendance', '/reports'].includes(item.href))] : nav
+  return <SessionGate><div className="workspace">
     <a className="skip-link" href="#workspace-content">본문으로 이동</a>
     <aside className="workspace-sidebar">
-      <a href="/" className="wordmark" aria-label="모아셈 홈"><span className="brand-symbol">m<span>:</span></span><span>MOASEM<small>모아셈</small></span></a>
+      <a href={staff ? staffHome(staff) : "/login"} className="wordmark" aria-label="모아셈 홈"><span className="brand-symbol">m<span>:</span></span><span>MOASEM<small>모아셈</small></span></a>
       <div className="sidebar-label">학습 운영</div>
-      <nav className="workspace-nav" aria-label="학습관리 메뉴">{nav.map(item => <a key={item.href} href={item.href} className={current === item.href ? 'active' : ''} aria-current={current === item.href ? 'page' : undefined}><Icon name={item.icon}/><span>{item.title}</span></a>)}</nav>
+      <nav data-role={staff?.role} className="workspace-nav" aria-label="학습관리 메뉴">{menu.map(item => <a key={item.href} href={item.href} className={current === item.href ? 'active' : ''} aria-current={current === item.href ? 'page' : undefined}><Icon name={item.icon}/><span>{item.title}</span></a>)}</nav>
       <div className="sidebar-footer"><span className="sidebar-avatar">M</span><div><strong>MOAKIT</strong><small>기관 위탁 수학 학습관리</small></div></div>
     </aside>
     <div className="workspace-body">
-      <div className="workspace-topline"><span>모아셈 <span className="breadcrumb-separator">/</span> {nav.find(item => item.href === current)?.title}</span><span className="workspace-role">운영 관리</span></div>
+      <div className="workspace-topline"><span>모아셈 <span className="breadcrumb-separator">/</span> {menu.find(item => item.href === current)?.title}</span><span className="workspace-role">{staff?.name} · {staff?.role === 'admin' ? '관리자' : '강사'}</span></div>
       <main id="workspace-content" className="workspace-content">
         <header className="page-heading"><div><h1>{title}</h1><p>{description}</p></div>{action}</header>
         {children}
       </main>
     </div>
-  </div>
+  </div></SessionGate>
 }
 
-export function AdminAccess({ value, onChange, onLoad, onDisconnect, busy = false, loaded = false }: { value: string; onChange: (value: string) => void; onLoad: () => void; onDisconnect: () => void; busy?: boolean; loaded?: boolean }) {
-  return <form className="access-bar" onSubmit={event => { event.preventDefault(); onLoad() }}>
-    <div className="access-caption" role="status"><Icon name={loaded ? 'check' : 'lock'} size={17}/><span>{busy ? '목록을 불러오는 중…' : loaded ? '연결됨 · 메뉴를 옮겨도 자동으로 불러옵니다' : '관리 키로 한 번 연결하세요'}</span></div>
-    <div className="access-controls">{!loaded&&<><label className="sr-only" htmlFor="admin-access-key">관리 키</label><input id="admin-access-key" type="password" disabled={busy} autoComplete="off" value={value} onChange={event => onChange(event.target.value)} placeholder="관리 키 입력" required/></>}<button className="button button-dark" disabled={busy}>{busy ? '불러오는 중…' : loaded ? '새로고침' : '연결하기'}</button>{loaded&&<button type="button" className="button" disabled={busy} onClick={onDisconnect}>연결 해제</button>}</div>
-  </form>
+export function StaffAccess({ onLoad, busy = false }: { onLoad: () => void; busy?: boolean }) {
+  const { staff } = useStaff()
+  const [error, setError] = useState('')
+  const [leaving, setLeaving] = useState(false)
+  async function leave() {
+    setLeaving(true); setError('')
+    try { await logout() } catch (e) { setError(e instanceof Error ? e.message : '다시 시도해 주세요.'); setLeaving(false) }
+  }
+  return <div className="access-bar">
+    <div className="access-caption" role="status"><Icon name="check" size={17}/><span>{error || (busy ? '목록을 불러오는 중…' : `${staff?.name || ''} 님으로 로그인했습니다`)}</span></div>
+    <div className="access-controls"><button className="button button-dark" onClick={onLoad} disabled={busy || leaving}>새로고침</button><button className="button" onClick={leave} disabled={leaving}>{leaving ? '로그아웃 중…' : '로그아웃'}</button></div>
+  </div>
 }
 
 export function Notice({ children }: { children: ReactNode }) {
