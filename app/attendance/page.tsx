@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import { adminHeaders, useAdminConnection } from '../../lib/use-admin-connection'
 import { AdminAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
 
 type Program={id:string;name:string;institution:{id:string;name:string}|null}
@@ -9,7 +10,7 @@ const statuses=[{value:'present',label:'출석'},{value:'absent',label:'결석'}
 function localDateString(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 
 export default function AttendancePage(){
-  const [adminKey,setAdminKey]=useState('')
+  const {adminKey,setAdminKey,headers,rememberKey,forgetKey,disconnect,storageMessage}=useAdminConnection(loadPrograms)
   const [programs,setPrograms]=useState<Program[]>([])
   const [programId,setProgramId]=useState('')
   const [date,setDate]=useState(localDateString())
@@ -20,15 +21,13 @@ export default function AttendancePage(){
   const [busy,setBusy]=useState(false)
   const [saving,setSaving]=useState(false)
   const requestVersion=useRef(0)
-  useEffect(()=>{const saved=sessionStorage.getItem('moasem-admin-key');if(saved)setAdminKey(saved)},[])
-  const headers=useMemo(()=>({'Content-Type':'application/json','x-moasem-admin-key':adminKey}),[adminKey])
   const selection=`${programId}:${date}`
   const hasLoaded=loadedSelection===selection
-  async function loadPrograms(){
-    if(!adminKey)return setMessage('관리 키를 입력해 주세요.')
+  async function loadPrograms(key=adminKey){
+    if(!key)return setMessage('관리 키를 입력해 주세요.')
     setBusy(true)
-    try{const response=await fetch('/api/admin/programs',{headers,cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'프로그램을 불러오지 못했습니다.');setPrograms(data.items??[]);setConnected(true);sessionStorage.setItem('moasem-admin-key',adminKey);setMessage('')}
-    catch(error){setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
+    try{const response=await fetch('/api/admin/programs',{headers:adminHeaders(key),cache:'no-store'});if(response.status===401){forgetKey();throw new Error('관리 키가 맞지 않거나 변경되었습니다. 다시 연결해 주세요.')}const data=await response.json();if(!response.ok)throw new Error(data.error||'프로그램을 불러오지 못했습니다.');setPrograms(data.items??[]);setConnected(true);rememberKey(key);setMessage('')}
+    catch(error){setConnected(false);setPrograms([]);setProgramId('');clearSelection();setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
     finally{setBusy(false)}
   }
   function clearSelection(){requestVersion.current+=1;setLoadedSelection('');setStudents([]);setMessage('')}
@@ -48,7 +47,7 @@ export default function AttendancePage(){
     finally{setSaving(false)}
   }
   return <Workspace current="/attendance" title="대면 출석" description="수업일의 학생 명단을 확인하고 출석을 기록하세요.">
-    <AdminAccess value={adminKey} onChange={value=>{setAdminKey(value);setConnected(false);clearSelection()}} onLoad={loadPrograms} loaded={connected} busy={busy||saving}/>
+    <AdminAccess value={adminKey} onChange={setAdminKey} onLoad={loadPrograms} onDisconnect={disconnect} loaded={connected} busy={busy||saving}/>
     <section className="surface">
       <div className="toolbar">
         <label className="field"><span>프로그램</span><select value={programId} disabled={saving} onChange={event=>{clearSelection();setProgramId(event.target.value)}}><option value="">프로그램 선택</option>{programs.map(program=><option key={program.id} value={program.id}>{program.institution?.name} · {program.name}</option>)}</select></label>
@@ -59,6 +58,6 @@ export default function AttendancePage(){
       {!hasLoaded?<EmptyState icon="attendance" title="오늘 함께할 학생을 불러오세요" description="프로그램과 수업일을 선택하면 출석을 한 번에 기록할 수 있습니다."/>:!students.length?<EmptyState icon="people" title="등록된 학생이 없습니다" description="기관·학생 관리에서 이 프로그램의 학생을 먼저 등록해 주세요."/>:<div className="table-scroll"><table className="data-table attendance-table"><thead><tr><th>학생</th><th>출석 상태</th><th>수업 메모</th></tr></thead><tbody>{students.map(student=><tr key={student.id}><td><span className="table-name">{student.name}</span><small>{student.grade}학년{student.student_number?` · ${student.student_number}`:''}</small></td><td><div className="attendance-choices" role="group" aria-label={`${student.name} 출석 상태`}>{statuses.map(status=><button key={status.value} aria-pressed={student.status===status.value} disabled={saving} className={student.status===status.value?`selected ${status.value}`:''} onClick={()=>setStudents(items=>items.map(item=>item.id===student.id?{...item,status:status.value}:item))}>{status.label}</button>)}</div></td><td><input className="field-note" aria-label={`${student.name} 수업 메모`} value={student.note} disabled={saving} placeholder="선택 입력" onChange={event=>setStudents(items=>items.map(item=>item.id===student.id?{...item,note:event.target.value}:item))}/></td></tr>)}</tbody></table></div>}
       <div className="save-footer"><div>{hasLoaded&&students.length?<div className="attendance-counts">{statuses.map(status=><span key={status.value}>{status.label}<b>{students.filter(student=>student.status===status.value).length}</b></span>)}</div>:<p>출석 상태를 확인한 뒤 저장해 주세요.</p>}</div><button className="button button-primary" disabled={!hasLoaded||!students.length||saving||busy} onClick={save}><Icon name="check" size={17}/>{saving?'저장 중…':'출석 저장'}</button></div>
     </section>
-    <Notice>{message}</Notice>
+    <Notice>{storageMessage||message}</Notice>
   </Workspace>
 }
