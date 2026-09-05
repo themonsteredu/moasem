@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const primary = await supabase
       .from('institutions')
@@ -27,16 +29,15 @@ export async function GET(request: NextRequest) {
 
     throw primary.error
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '기관 목록을 불러오지 못했습니다.' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const name = String(body.name ?? '').trim()
     if (!name) return NextResponse.json({ error: '기관명을 입력하세요.' }, { status: 400 })
@@ -57,9 +58,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ item: data }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '기관을 등록하지 못했습니다.' }, { status: 500 })
   }
 }
