@@ -24,6 +24,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 const nav = [
   { href: '/', title: '기관·학생 관리', icon: 'overview' as const },
   { href: '/instructors', title: '강사 관리', icon: 'people' as const },
+  { href: '/consents', title: '보호자 동의서', icon: 'lock' as const },
   { href: '/attendance', title: '대면 출석', icon: 'attendance' as const },
   { href: '/reports', title: '보호자 리포트', icon: 'report' as const },
   { href: '/wrong-types', title: '오답·보충영상', icon: 'video' as const },

@@ -8,7 +8,7 @@ const instructorId = '33333333-3333-4333-8333-333333333333'
 const studentId = '44444444-4444-4444-8444-444444444444'
 const user = { id: 'auth-user', email: 'teacher@example.test', email_confirmed_at: '2026-01-01', user_metadata: { role: 'admin' }, is_anonymous: false }
 let account, authUser, tables, queries, writes, rpcCalls, identityCalls, sessionCalls
-let loginFails, refreshFails, dbFails
+let loginFails, refreshFails, dbFails, rpcError, notificationClaim
 const session = { access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_in: 3600 }
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.kind = 'select'; this.payload = null; this.head = false; this.one = false; queries.push(this) }
@@ -17,6 +17,7 @@ class Query {
   is(key, value) { return this.eq(key, value) }
   in(key, value) { this.filters.push([key, value, 'in']); return this }
   order() { return this }
+  limit() { return this }
   maybeSingle() { this.one = true; return this }
   single() { this.one = true; return this }
   update(value) { this.kind = 'update'; this.payload = value; return this }
@@ -41,7 +42,7 @@ class Query {
 }
 const fakeDb = {
   from: name => new Query(name),
-  rpc: async (name, args) => { rpcCalls.push({ name, args }); return { data: 'saved', error: null } },
+  rpc: async (name, args) => { rpcCalls.push({ name, args }); return { data: name === 'claim_report_notification' ? notificationClaim : name === 'create_staff_learning_report' ? { token: 'report-token', expires_at: '2027-01-01' } : 'saved', error: rpcError } },
   auth: {
     getUser: async token => ({ data: { user: token === 'valid' ? authUser : null }, error: token === 'valid' ? null : new Error('expired') }),
     signInWithPassword: async () => { sessionCalls.push('login'); return { data: { user: authUser, session }, error: loginFails ? new Error('wrong password') : null } },
@@ -60,6 +61,10 @@ const programs = require('../app/api/admin/programs/route.ts')
 const students = require('../app/api/admin/students/route.ts')
 const attendance = require('../app/api/admin/attendance/route.ts')
 const reports = require('../app/api/admin/learning-reports/route.ts')
+const reportOptions = require('../app/api/admin/report-options/route.ts')
+const notificationRoute = require('../app/api/admin/learning-reports/[token]/notification/route.ts')
+const notificationList = require('../app/api/admin/report-notifications/route.ts')
+const publicReport = require('../app/api/report/[token]/route.ts')
 const instructors = require('../app/api/admin/instructors/route.ts')
 const login = require('../app/api/auth/login/route.ts')
 const status = require('../app/api/auth/session/route.ts')
@@ -73,7 +78,7 @@ function req(path, { method = 'GET', body, token = 'valid', origin = 'https://mo
 }
 beforeEach(() => {
   account = { id: 'staff', name: '강사', email: user.email, role: 'instructor', instructor_id: instructorId, auth_user_id: user.id, active: true }
-  authUser = { ...user }; queries = []; writes = []; rpcCalls = []; identityCalls = []; sessionCalls = []; loginFails = false; refreshFails = false; dbFails = false
+  authUser = { ...user }; queries = []; writes = []; rpcCalls = []; identityCalls = []; sessionCalls = []; loginFails = false; refreshFails = false; dbFails = false; rpcError = null; notificationClaim = null
   tables = {
     programs: [{ id: own, instructor_id: instructorId, name: '담당 프로그램' }, { id: other, instructor_id: 'another-instructor', name: '다른 프로그램' }],
     students: [{ id: studentId, program_id: own, name: '담당 학생', active: true, guardian_id: 'guardian' }, { id: 'other-student', program_id: other, name: '다른 학생', active: true }],
@@ -121,17 +126,36 @@ test('Mixing a foreign student into own attendance rejects the entire write', as
 test('Own attendance and report creation work', async () => {
   assert.equal((await attendance.POST(req('/api/admin/attendance', { method: 'POST', body: { program_id: own, session_date: '2026-09-05', records: [{ student_id: studentId, status: 'present' }] } }))).status, 200)
   assert.equal((await reports.POST(req('/api/admin/learning-reports', { method: 'POST', body: { student_id: studentId, lesson_date: '2026-09-05', solved_count: 10, wrong_count: 2 } }))).status, 201)
-  assert.deepEqual(writes.map(x => x.table), ['attendance', 'learning_logs', 'guardian_reports'])
+  assert.deepEqual(writes.map(x => x.table), ['attendance'])
+  assert.equal(rpcCalls[0].name, 'create_staff_learning_report')
+  assert.equal(rpcCalls[0].args.p_staff_id, account.id)
+  assert.equal(rpcCalls[0].args.p_student_id, studentId)
 })
 test('Another student report cannot be created by guessing their ID', async () => {
   assert.equal((await reports.POST(req('/api/admin/learning-reports', { method: 'POST', body: { student_id: 'other-student', lesson_date: '2026-09-05', solved_count: 10, wrong_count: 2 } }))).status, 403)
   assert.equal(writes.length, 0)
+  assert.equal(rpcCalls.length, 0)
 })
 test('Instructor cannot create accounts or register students', async () => {
   assert.equal((await instructors.POST(req('/api/admin/instructors', { method: 'POST', body: {} }))).status, 403)
   assert.equal((await students.POST(req('/api/admin/students', { method: 'POST', body: {} }))).status, 403)
   assert.deepEqual(identityCalls, [])
   assert.deepEqual(writes, [])
+})
+test('Only an administrator can update age confirmation and guardian language', async () => {
+  const body = { student_id: studentId, is_under_14: true, guardian_language: 'en', staff_id: 'spoofed' }
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body }))).status, 403)
+  account.role = 'admin'; account.instructor_id = null
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body: { ...body, is_under_14: 'true' } }))).status, 400)
+  assert.equal((await students.PATCH(req('/', { method: 'PATCH', body }))).status, 200)
+  assert.deepEqual(rpcCalls, [{ name: 'update_student_consent_details', args: { p_staff_id: account.id, p_student_id: studentId, p_is_under_14: true, p_language: 'en' } }])
+})
+test('English reports reach storage as English and unsupported languages are rejected', async () => {
+  const body = { student_id: studentId, lesson_date: '2026-09-05', solved_count: 10, wrong_count: 1, language: 'en' }
+  assert.equal((await reports.POST(req('/', { method: 'POST', body }))).status, 201)
+  assert.equal(rpcCalls[0].args.p_payload.language, 'en')
+  assert.equal((await reports.POST(req('/', { method: 'POST', body: { ...body, language: 'fr' } }))).status, 400)
+  assert.equal(rpcCalls.length, 1)
 })
 test('Cross-origin mutations are rejected before database or identity calls', async () => {
   assert.equal((await login.POST(req('/api/auth/login', { method: 'POST', origin: 'https://attacker.example', body: {} }))).status, 403)
@@ -210,4 +234,176 @@ test('Logout with only a refresh cookie still revokes that session', async () =>
   assert.equal(response.status, 200)
   assert.deepEqual(sessionCalls, ['refresh', { token: 'fresh-access', scope: 'local' }])
   assert.equal(response.cookies.get('moasem-refresh').maxAge, 0)
+})
+
+const reportBody = { student_id: studentId, lesson_date: '2026-09-05', solved_count: 10, wrong_count: 2 }
+test('Selected type IDs use the verified staff identity and canonical manual URL in one save', async () => {
+  const response = await reports.POST(req('/api/admin/learning-reports', { method: 'POST', body: { ...reportBody, staff_id: 'someone-else', wrong_type_ids: [own, other], video_url: 'HTTPS://EXAMPLE.COM' } }))
+  assert.equal(response.status, 201)
+  assert.equal((await response.json()).token, 'report-token')
+  assert.match(response.headers.get('cache-control'), /no-store/)
+  assert.equal(rpcCalls.length, 1)
+  assert.equal(rpcCalls[0].args.p_staff_id, account.id)
+  assert.deepEqual(rpcCalls[0].args.p_wrong_type_ids, [own, other])
+  assert.equal(rpcCalls[0].args.p_payload.video_url, 'https://example.com/')
+  assert.equal(writes.length, 0)
+})
+test('Malformed, duplicate and inconsistent type selections are rejected before saving', async () => {
+  for (const input of [{ wrong_type_ids: 'one' }, { wrong_type_ids: ['not-a-uuid'] }, { wrong_type_ids: [own, own] }, { wrong_type_ids: [own], wrong_count: 0 }, { video_url: 'javascript:alert(1)' }, { video_url: 'https://user:password@example.com/' }]) {
+    assert.equal((await reports.POST(req('/api/admin/learning-reports', { method: 'POST', body: { ...reportBody, ...input } }))).status, 400)
+  }
+  assert.equal(rpcCalls.length, 0)
+  assert.equal(writes.length, 0)
+})
+test('Catalog changes and revoked program access during save return actionable errors', async () => {
+  for (const [message, status] of [['INVALID_WRONG_TYPES', 400], ['PROGRAM_ACCESS_DENIED', 403], ['STAFF_ACCESS_DENIED', 403], ['database unavailable', 500]]) {
+    rpcError = { message }
+    const response = await reports.POST(req('/api/admin/learning-reports', { method: 'POST', body: { ...reportBody, wrong_type_ids: [own] } }))
+    assert.equal(response.status, status)
+    assert.equal((await response.json()).token, undefined)
+  }
+  assert.equal(writes.length, 0)
+})
+test('An authenticated instructor can select types but receives only eligible primary videos', async () => {
+  const video = { id: 'video', title: '보충영상', url: 'https://example.com/watch', language: 'ko', active: true, visibility: 'unlisted' }
+  const type = { id: own, name: '분수', active: true }
+  tables.wrong_types = [
+    { ...type, id: 'linked', video_links: [{ is_primary: true, video }] },
+    { ...type, id: 'private', video_links: [{ is_primary: true, video: { ...video, visibility: 'private' } }] },
+    { ...type, id: 'inactive-video', video_links: [{ is_primary: true, video: { ...video, active: false } }] },
+    { ...type, id: 'secondary-only', video_links: [{ is_primary: false, video }] },
+    { ...type, id: 'no-video', video_links: [] },
+    { ...type, id: 'inactive-type', active: false, video_links: [{ is_primary: true, video }] },
+  ]
+  const response = await reportOptions.GET(req('/api/admin/report-options'))
+  assert.equal(response.status, 200)
+  const { items } = await response.json()
+  assert.equal(items.length, 5)
+  assert.equal(items[0].video.url, video.url)
+  assert.ok(items.slice(1).every(item => item.video === null))
+  assert.ok(items.every(item => item.video_links === undefined))
+  assert.match(response.headers.get('cache-control'), /no-store/)
+  queries = []
+  assert.equal((await reportOptions.GET(req('/api/admin/report-options', { token: null }))).status, 401)
+  assert.equal(queries.length, 0)
+})
+test('Public report returns its own snapshot without staff login or querying the current catalog', async () => {
+  tables.guardian_reports = [{ token: 'valid-report', expires_at: '2099-01-01', language: 'ko', learning_log: { video_url: 'https://example.com/watch', resource_snapshot: { version: 1, wrong_types: [{ id: own, name: '작성 당시 유형명' }], videos: [{ id: 'v', title: '작성 당시 영상', url: 'https://example.com/watch', language: 'ko' }] } } }]
+  const response = await publicReport.GET(req('/api/report/valid-report', { token: null }), { params: { token: 'valid-report' } })
+  assert.equal(response.status, 200)
+  const { report } = await response.json()
+  assert.equal(report.resources.videos.length, 1)
+  assert.equal(report.resources.wrong_types[0].name, '작성 당시 유형명')
+  assert.deepEqual(queries.map(q => q.table), ['guardian_reports'])
+  assert.doesNotMatch(queries[0].columns, /teacher_note|guardian.*phone|staff/)
+  assert.match(response.headers.get('cache-control'), /no-store/)
+})
+test('Expired, invalid-expiry and unknown public tokens never return learning resources', async () => {
+  for (const expires_at of ['2000-01-01', 'invalid']) {
+    tables.guardian_reports = [{ token: 'expired', expires_at, learning_log: { resource_snapshot: { videos: ['private data'] } } }]
+    const response = await publicReport.GET(req('/api/report/expired', { token: null }), { params: { token: 'expired' } })
+    assert.equal(response.status, 410)
+    assert.equal((await response.json()).report, undefined)
+  }
+  assert.equal((await publicReport.GET(req('/api/report/unknown', { token: null }), { params: { token: 'unknown' } })).status, 404)
+})
+test('A guardian report token alone does not authorize sending or reading notification history', async () => {
+  const body = { action: 'send', to: '01000000000' }
+  assert.equal((await notificationRoute.POST(req('/', { method: 'POST', body, token: null }), { params: { token: own } })).status, 401)
+  assert.equal((await notificationList.GET(req(`/api/admin/report-notifications?student_id=${studentId}`, { token: null }))).status, 401)
+  assert.equal(rpcCalls.length, 0)
+  assert.equal(queries.length, 0)
+})
+test('An instructor cannot send or check another program report and cannot load its notification history', async () => {
+  tables.guardian_reports = [{ id: 'report-id', token: own, student: { program_id: other } }]
+  for (const action of ['send', 'refresh']) assert.equal((await notificationRoute.POST(req('/', { method: 'POST', body: { action } }), { params: { token: own } })).status, 403)
+  assert.equal((await notificationList.GET(req('/api/admin/report-notifications?student_id=other-student'))).status, 403)
+  assert.equal(rpcCalls.length, 0)
+  assert.equal(writes.length, 0)
+})
+test('Cross-origin notification sends are rejected before any database call', async () => {
+  assert.equal((await notificationRoute.POST(req('/', { method: 'POST', origin: 'https://attacker.example', body: { action: 'send' } }), { params: { token: own } })).status, 403)
+  assert.equal(queries.length, 0)
+})
+test('Unconfigured MOAKIT sending leaves the saved report untouched and never claims a send', async () => {
+  const old = process.env.MOASEM_ALIMTALK_ENABLED
+  process.env.MOASEM_ALIMTALK_ENABLED = 'false'
+  try {
+    tables.guardian_reports = [{ id: 'report-id', token: own, student: { program_id: own } }]
+    const response = await notificationRoute.POST(req('/', { method: 'POST', body: { action: 'send' } }), { params: { token: own } })
+    assert.equal(response.status, 503)
+    assert.equal(rpcCalls.length, 0)
+    assert.equal(writes.length, 0)
+  } finally { if (old === undefined) delete process.env.MOASEM_ALIMTALK_ENABLED; else process.env.MOASEM_ALIMTALK_ENABLED = old }
+})
+test('Staff notification history exposes status and masked recipients, never provider or contact details', async () => {
+  tables.guardian_reports = [{ id: 'report', token: own, student_id: studentId, guardian_id: 'guardian', expires_at: '2099-01-01', learning_log: { lesson_date: '2026-09-05' }, attempts: [{ id: 'attempt', status: 'accepted', recipient_phone: '01012345678', provider_message_id: 'provider-private-id', provider_group_id: 'private-group', error_code: 'private-error', created_at: '2026-09-05', updated_at: '2026-09-05' }] }]
+  const response = await notificationList.GET(req(`/api/admin/report-notifications?student_id=${studentId}`))
+  assert.equal(response.status, 200)
+  const data = await response.json()
+  assert.equal(data.items[0].recipient, '010-****-5678')
+  assert.doesNotMatch(JSON.stringify(data), /01012345678|provider-private-id|private-group|private-error/)
+  assert.match(response.headers.get('cache-control'), /no-store/)
+  assert.equal(rpcCalls.length, 0)
+})
+for (const saveFails of [false, true]) test(`Notification send uses server recipient and durable claim; result save failure=${saveFails}`, async () => {
+  const env = { MOASEM_ALIMTALK_ENABLED: 'true', MOASEM_PUBLIC_URL: 'https://reports.example.test', SOLAPI_API_KEY: 'test-key', SOLAPI_API_SECRET: 'test-secret', SOLAPI_PF_ID: 'PFtest', SOLAPI_REPORT_TEMPLATE_ID: 'KAtest' }
+  const oldEnv = Object.fromEntries(Object.keys(env).map(key => [key, process.env[key]])), oldFetch = global.fetch
+  Object.assign(process.env, env)
+  const attempt = { id: 'attempt', report_id: 'report-id', recipient_phone: '01000000000', status: 'sending', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+  tables.guardian_reports = [{ id: 'report-id', token: own, student: { program_id: own } }]
+  tables.report_notification_attempts = [attempt]
+  notificationClaim = { claimed: true, attempt }
+  const providerCalls = []
+  global.fetch = async (url, options) => {
+    providerCalls.push({ url, options })
+    if (options.method === 'POST') {
+      const message = JSON.parse(options.body).messages[0]
+      assert.equal(message.to, '01000000000')
+      assert.equal(message.kakaoOptions.variables['#{리포트링크}'], `https://reports.example.test/report/${own}`)
+      dbFails = saveFails
+      return new Response(JSON.stringify({ failedMessageList: [], messageList: [{ messageId: 'M1', statusCode: '2000' }] }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ messageList: { M1: { messageId: 'M1', type: 'ATA', status: 'COMPLETE', statusCode: '4000' } } }), { status: 200 })
+  }
+  try {
+    const body = { action: 'send', to: '01099999999', url: 'https://attacker.example', staff_id: 'other' }
+    const first = await notificationRoute.POST(req('/', { method: 'POST', body }), { params: { token: own } })
+    assert.equal(first.status, 200)
+    assert.equal((await first.json()).notification.status, saveFails ? 'unknown' : 'accepted')
+    assert.equal(rpcCalls[0].args.p_staff_id, account.id)
+    assert.equal(attempt.status, saveFails ? 'sending' : 'accepted')
+    dbFails = false; notificationClaim.claimed = false
+    const second = await notificationRoute.POST(req('/', { method: 'POST', body }), { params: { token: own } })
+    assert.equal((await second.json()).duplicate, true)
+    assert.equal(providerCalls.length, 1)
+    if (!saveFails) {
+      const refreshed = await notificationRoute.POST(req('/', { method: 'POST', body: { action: 'refresh' } }), { params: { token: own } })
+      assert.equal((await refreshed.json()).notification.status, 'delivered')
+    }
+  } finally {
+    global.fetch = oldFetch
+    for (const [key, value] of Object.entries(oldEnv)) if (value === undefined) delete process.env[key]; else process.env[key] = value
+  }
+})
+
+const progressRoute = require('../app/api/admin/students/[id]/progress/route.ts')
+const progressContext = { params: { id: studentId } }
+const progressBody = { entry_id: studentId, lesson_date: '2026-09-01', book: '수학', unit: '', pages: '', next_assignment: '', learned: '', difficulties: '', teacher_note: '' }
+test('Progress endpoints reject unauthenticated reads and cross-origin writes before RPC', async () => {
+ assert.equal((await progressRoute.GET(new NextRequest('https://moasem.example/api/admin/students/'+studentId+'/progress'), progressContext)).status, 401)
+ assert.equal((await progressRoute.POST(new NextRequest('https://moasem.example/api/admin/students/'+studentId+'/progress', { method: 'POST', headers: { cookie: 'moasem-access=valid', origin: 'https://foreign.example' }, body: JSON.stringify(progressBody) }), progressContext)).status, 403)
+ assert.equal(rpcCalls.length, 0)
+})
+test('Progress saves use verified staff ID and route student ID, never supplied role or identity', async () => {
+ const r = await progressRoute.POST(req('/api/admin/students/'+studentId+'/progress', { method: 'POST', body: { ...progressBody, staff_id: 'attacker', student_id: 'other', role: 'admin' } }), progressContext)
+ assert.equal(r.status, 201)
+ assert.equal(rpcCalls[0].args.p_staff_id, account.id)
+ assert.equal(rpcCalls[0].args.p_student_id, studentId)
+ assert.equal(rpcCalls[0].args.p_input.staff_id, undefined)
+})
+test('Progress API maps database scope denial and rejects malformed page offsets', async () => {
+ rpcError = { message: 'PROGRAM_ACCESS_DENIED' }
+ assert.equal((await progressRoute.GET(req('/api/admin/students/'+studentId+'/progress'), progressContext)).status, 403)
+ assert.equal((await progressRoute.GET(req('/api/admin/students/'+studentId+'/progress?offset=-1'), progressContext)).status, 400)
 })
