@@ -1,7 +1,9 @@
 'use client'
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
-import { AdminAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
+import { apiFetch, jsonHeaders as headers } from '../../lib/staff-client'
+import { useStaffData } from '../components/staff-session'
+import { StaffAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
 
 type Video = {
   id: string
@@ -105,7 +107,7 @@ function formatDuration(seconds: number | null) {
 
 export default function WrongTypesPage() {
   const [tab, setTab] = useState<Tab>('types')
-  const [adminKey, setAdminKey] = useState('')
+  useStaffData(loadAll)
   const [items, setItems] = useState<WrongType[]>([])
   const [videos, setVideos] = useState<Video[]>([])
   const [draft, setDraft] = useState<WrongTypeDraft>(emptyType)
@@ -123,18 +125,12 @@ export default function WrongTypesPage() {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('moasem-admin-key')
-    if (saved) setAdminKey(saved)
-  }, [])
-
-  useEffect(() => {
     const open = tab === 'types' ? typeEditorOpen : videoEditorOpen
     if (open && window.matchMedia('(max-width: 960px)').matches) {
       document.getElementById('catalog-active-editor')?.scrollIntoView({ block: 'start', behavior: 'auto' })
     }
   }, [tab, typeEditorOpen, videoEditorOpen, draft.id, videoDraft.id])
 
-  const headers = useMemo(() => ({ 'Content-Type': 'application/json', 'x-moasem-admin-key': adminKey }), [adminKey])
   const domains = useMemo(() => Array.from(new Set(items.map(item => item.domain).filter(Boolean) as string[])).sort(), [items])
   const connectedCount = items.filter(item => primaryVideo(item)).length
   const linkedCount = (videoId: string) => items.filter(item => item.video_links?.some(link => link.video?.id === videoId)).length
@@ -158,13 +154,11 @@ export default function WrongTypesPage() {
   }, [items, search, grade, semester, domain, connection])
 
   async function loadAll() {
-    if (!adminKey) return setMessage('관리 키를 먼저 입력하세요.')
     setBusy(true)
-    sessionStorage.setItem('moasem-admin-key', adminKey)
     try {
       const [typesResponse, videosResponse] = await Promise.all([
-        fetch('/api/admin/wrong-types', { headers, cache: 'no-store' }),
-        fetch('/api/admin/videos', { headers, cache: 'no-store' }),
+        apiFetch('/api/admin/wrong-types', { headers, cache: 'no-store' }),
+        apiFetch('/api/admin/videos', { headers, cache: 'no-store' }),
       ])
       const [typesData, videosData] = await Promise.all([typesResponse.json(), videosResponse.json()])
       if (!typesResponse.ok) throw new Error(typesData.error || '오답 유형을 불러오지 못했습니다.')
@@ -172,8 +166,16 @@ export default function WrongTypesPage() {
       setItems(typesData.items ?? [])
       setVideos(videosData.items ?? [])
       setLoaded(true)
+
       setMessage('')
     } catch (error) {
+      setLoaded(false)
+      setItems([])
+      setVideos([])
+      setDraft(emptyType)
+      setVideoDraft(emptyVideo)
+      setTypeEditorOpen(false)
+      setVideoEditorOpen(false)
       setMessage(error instanceof Error ? error.message : '목록을 불러오지 못했습니다.')
     } finally {
       setBusy(false)
@@ -209,7 +211,7 @@ export default function WrongTypesPage() {
   async function saveType(goNext = false) {
     setBusy(true)
     try {
-      const response = await fetch('/api/admin/wrong-types', { method: 'POST', headers, body: JSON.stringify(draft) })
+      const response = await apiFetch('/api/admin/wrong-types', { method: 'POST', headers, body: JSON.stringify(draft) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || '저장하지 못했습니다.')
       await loadAll()
@@ -233,7 +235,7 @@ export default function WrongTypesPage() {
     event.preventDefault()
     setBusy(true)
     try {
-      const response = await fetch('/api/admin/videos', { method: 'POST', headers, body: JSON.stringify(videoDraft) })
+      const response = await apiFetch('/api/admin/videos', { method: 'POST', headers, body: JSON.stringify(videoDraft) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || '영상을 저장하지 못했습니다.')
       await loadAll()
@@ -272,7 +274,7 @@ export default function WrongTypesPage() {
       const missing = ['code', 'name', 'grade'].filter(column => !header.includes(column))
       if (missing.length) throw new Error(`필수 열이 없습니다: ${missing.join(', ')}`)
       const csvItems = rows.slice(1).map(row => Object.fromEntries(header.map((key, index) => [key, row[index] ?? ''])))
-      const response = await fetch('/api/admin/wrong-types/import', { method: 'POST', headers, body: JSON.stringify({ items: csvItems }) })
+      const response = await apiFetch('/api/admin/wrong-types/import', { method: 'POST', headers, body: JSON.stringify({ items: csvItems }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'CSV 등록에 실패했습니다.')
       await loadAll()
@@ -290,7 +292,7 @@ export default function WrongTypesPage() {
     : descriptionLanguage === 'vi' ? { ...draft, description_vi: value } : { ...draft, description_zh_cn: value })
 
   return <Workspace current="/wrong-types" title="오답·보충영상" description="어려워하는 유형에 필요한 설명 영상을 연결하세요." action={<div className="catalog-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><label className="catalog-button primary file-control">CSV 일괄등록<input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={busy}/></label></div>}>
-    <AdminAccess value={adminKey} onChange={value => { setAdminKey(value); setLoaded(false) }} onLoad={loadAll} busy={busy} loaded={loaded}/>
+    <StaffAccess onLoad={loadAll} busy={busy}/>
 
     <section className="catalog-overview" aria-label="콘텐츠 현황">
       <div><span>전체 유형</span><strong>{loaded ? items.length : '—'}</strong></div><div><span>영상 연결</span><strong>{loaded ? connectedCount : '—'}</strong></div><div><span>연결 필요</span><strong>{loaded ? items.length - connectedCount : '—'}</strong></div><div><span>보충영상</span><strong>{loaded ? videos.length : '—'}</strong></div>
@@ -326,7 +328,7 @@ export default function WrongTypesPage() {
                 </tr>
               })}</tbody>
             </table>
-            {!filteredItems.length && (!loaded ? <EmptyState title="오답 유형을 불러오세요" description="관리 키로 연결하면 등록된 유형과 보충영상을 확인할 수 있습니다." icon="video"/> : items.length ? <div className="catalog-empty compact"><b>조건에 맞는 유형이 없습니다</b><span>검색어나 필터를 바꿔 주세요.</span></div> : <div className="catalog-onboarding"><span className="eyebrow">콘텐츠 등록</span><h2>오답 유형을 먼저 등록해 주세요</h2><p>기존 유형표를 CSV로 올리거나 하나씩 등록할 수 있습니다.</p><ol><li><b>1</b>양식 받기</li><li><b>2</b>유형표 작성</li><li><b>3</b>등록 후 영상 연결</li></ol><div className="catalog-empty-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><button className="catalog-button primary" onClick={startNewType}>새 유형 등록</button></div></div>)}
+            {!filteredItems.length && (!loaded ? <EmptyState title="오답 유형을 불러오세요" description="새로고침을 누르면 등록된 유형과 보충영상을 불러옵니다." icon="video"/> : items.length ? <div className="catalog-empty compact"><b>조건에 맞는 유형이 없습니다</b><span>검색어나 필터를 바꿔 주세요.</span></div> : <div className="catalog-onboarding"><span className="eyebrow">콘텐츠 등록</span><h2>오답 유형을 먼저 등록해 주세요</h2><p>기존 유형표를 CSV로 올리거나 하나씩 등록할 수 있습니다.</p><ol><li><b>1</b>양식 받기</li><li><b>2</b>유형표 작성</li><li><b>3</b>등록 후 영상 연결</li></ol><div className="catalog-empty-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><button className="catalog-button primary" onClick={startNewType}>새 유형 등록</button></div></div>)}
           </div>
         </section>
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ function optionalText(value: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
       .from('wrong_types')
@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ items: data ?? [] }, { headers: privateHeaders })
   } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401, headers: privateHeaders })
     }
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const code = String(body.code ?? '').trim()
     const name = String(body.name ?? '').trim()
@@ -94,6 +96,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ item }, { status: body.id ? 200 : 201, headers: privateHeaders })
   } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401, headers: privateHeaders })
     }
