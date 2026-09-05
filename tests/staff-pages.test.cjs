@@ -12,7 +12,7 @@ const instructor = { ...admin, id: 'instructor', role: 'instructor', instructor_
 const pages = [
   { name: '기관·학생', path: '/', Component: require('../app/page.tsx').default, urls: ['/api/admin/institutions', '/api/admin/programs', '/api/admin/students', '/api/admin/instructors'] },
   { name: '대면 출석', path: '/attendance', Component: require('../app/attendance/page.tsx').default, urls: ['/api/admin/programs'] },
-  { name: '보호자 리포트', path: '/reports', Component: require('../app/reports/page.tsx').default, urls: ['/api/admin/students'] },
+  { name: '보호자 리포트', path: '/reports', Component: require('../app/reports/page.tsx').default, urls: ['/api/admin/students', '/api/admin/report-options'] },
   { name: '오답·영상', path: '/wrong-types', Component: require('../app/wrong-types/page.tsx').default, urls: ['/api/admin/wrong-types', '/api/admin/videos'] },
   { name: '강사 관리', path: '/instructors', Component: require('../app/instructors/page.tsx').default, urls: ['/api/admin/instructors'] },
   { name: '내 학생', path: '/my-students', Component: require('../app/my-students/page.tsx').default, urls: ['/api/admin/programs', '/api/admin/students'] },
@@ -107,4 +107,24 @@ test('Concurrent expired requests share one session refresh, then retry with coo
   const results = await Promise.all([apiFetch('/api/admin/programs'), apiFetch('/api/admin/students')])
   assert.deepEqual(results.map(x => x.status), [200, 200])
   assert.equal(counts.get('/api/auth/session'), 1)
+})
+
+test('Switching students clears selected wrong types and restores the new guardian language', async () => {
+  environment(instructor)
+  const fallback = global.fetch
+  const options = [{ id: 'type-one', name: '분수', code: 'E3-01', grade: 3, unit: '분수', video: null }]
+  global.fetch = async (url, init) => {
+    if (url === '/api/admin/students') return response(200, { items: [{ id: 'a', name: '학생 A', guardian: { language: 'vi' } }, { id: 'b', name: '학생 B', guardian: { language: 'ko' } }] })
+    if (url === '/api/admin/report-options') return response(200, { items: options })
+    return fallback(url, init)
+  }
+  await mount(pages[2])
+  await act(async () => mounted.root.findAllByType('select').find(select => select.props.required).props.onChange({ target: { value: 'a' } }))
+  await act(async () => mounted.root.findByProps({ type: 'checkbox' }).props.onChange({ target: { checked: true } }))
+  assert.equal(mounted.root.findByProps({ type: 'checkbox' }).props.checked, true)
+  assert.ok(mounted.root.findAllByType('select').some(select => select.props.value === 'vi'))
+  await act(async () => mounted.root.findAllByType('select').find(select => select.props.required).props.onChange({ target: { value: 'b' } }))
+  assert.equal(mounted.root.findByProps({ type: 'checkbox' }).props.checked, false)
+  assert.ok(mounted.root.findAllByType('select').some(select => select.props.value === 'ko'))
+  assert.equal(mounted.root.findAllByProps({ className: 'report-link' }).length, 0)
 })

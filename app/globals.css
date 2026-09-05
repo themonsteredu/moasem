@@ -35,3 +35,19 @@
 .login-card .editor-form fieldset{grid-template-columns:1fr}
 .instructor-editor .program-checks,.instructor-editor fieldset>.program-check,.instructor-editor .field-help{grid-column:1/-1}
 @media(max-width:760px){.workspace-nav[data-role=admin]{grid-template-columns:repeat(5,minmax(0,1fr))}.workspace-nav[data-role=instructor]{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.report-type-picker{border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.picker-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:600;color:#526175;margin-bottom:12px}
+.picker-heading small{font-weight:400;color:var(--muted);white-space:nowrap}
+.picker-filters{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;margin-bottom:12px}
+.picker-filters input,.picker-filters select{font-size:13px;min-width:0}
+.picker-options{max-height:240px;overflow:auto;overscroll-behavior:contain}
+.picker-option{display:flex;gap:10px;align-items:center;padding:12px 2px;border-top:1px solid var(--line);cursor:pointer}
+.picker-option input[type=checkbox]{width:18px;height:18px;flex:none;min-height:18px;margin:0}
+.picker-option>span{flex:1;min-width:0}.picker-option strong{font-size:13px;font-weight:500}.picker-option span small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.picker-option>small{flex:none;font-size:11px}.picker-linked{color:#2e7258}
+.picker-selected{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}.picker-selected button{display:flex;align-items:center;gap:8px;background:var(--soft-orange);border:0;border-radius:6px;padding:7px 9px;font-size:12px;color:#99431d}.picker-selected button span{font-size:16px}
+.picker-video-preview{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;font-size:13px}.picker-video-preview>strong{display:block;font-size:13px;margin-bottom:8px}.picker-video-preview a{display:block;color:#99431d;padding:5px 0;overflow-wrap:anywhere}.picker-video-preview .field-help{margin:8px 0 0}
+.guardian-types{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:14px}.guardian-types strong{font-size:17px;font-weight:500}.guardian-types p{margin:4px 0;font-size:17px;line-height:1.65}
+.guardian-videos{display:grid;gap:10px}.guardian-video span small{display:block;font-size:13px;font-weight:400;line-height:1.6;margin-top:4px}
+@media(max-width:600px){.report-type-picker{padding:13px}.picker-filters{grid-template-columns:minmax(0,1fr) 96px}.picker-option{gap:8px}.picker-option>small{font-size:10px}}
