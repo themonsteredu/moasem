@@ -1,69 +1,64 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AdminAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
 
 type Program={id:string;name:string;institution:{id:string;name:string}|null}
 type Student={id:string;name:string;grade:number;student_number:string|null;status:string;note:string}
-
-function localDateString(){
-  const d=new Date()
-  const y=d.getFullYear()
-  const m=String(d.getMonth()+1).padStart(2,'0')
-  const day=String(d.getDate()).padStart(2,'0')
-  return `${y}-${m}-${day}`
-}
+const statuses=[{value:'present',label:'출석'},{value:'absent',label:'결석'},{value:'late',label:'지각'},{value:'excused',label:'인정결석'}]
+function localDateString(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 
 export default function AttendancePage(){
   const [adminKey,setAdminKey]=useState('')
   const [programs,setPrograms]=useState<Program[]>([])
   const [programId,setProgramId]=useState('')
-  const [loadedProgramId,setLoadedProgramId]=useState('')
   const [date,setDate]=useState(localDateString())
+  const [loadedSelection,setLoadedSelection]=useState('')
   const [students,setStudents]=useState<Student[]>([])
   const [message,setMessage]=useState('')
+  const [connected,setConnected]=useState(false)
+  const [busy,setBusy]=useState(false)
+  const [saving,setSaving]=useState(false)
+  const requestVersion=useRef(0)
   useEffect(()=>{const saved=sessionStorage.getItem('moasem-admin-key');if(saved)setAdminKey(saved)},[])
   const headers=useMemo(()=>({'Content-Type':'application/json','x-moasem-admin-key':adminKey}),[adminKey])
-
+  const selection=`${programId}:${date}`
+  const hasLoaded=loadedSelection===selection
   async function loadPrograms(){
-    if(!adminKey)return setMessage('관리 키를 입력하세요.')
-    sessionStorage.setItem('moasem-admin-key',adminKey)
-    const res=await fetch('/api/admin/programs',{headers})
-    const data=await res.json(); if(!res.ok)return setMessage(data.error||'프로그램을 불러오지 못했습니다.')
-    setPrograms(data.items??[]); setMessage('')
+    if(!adminKey)return setMessage('관리 키를 입력해 주세요.')
+    setBusy(true)
+    try{const response=await fetch('/api/admin/programs',{headers,cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'프로그램을 불러오지 못했습니다.');setPrograms(data.items??[]);setConnected(true);sessionStorage.setItem('moasem-admin-key',adminKey);setMessage('')}
+    catch(error){setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
+    finally{setBusy(false)}
   }
-  function changeProgram(nextId:string){
-    setProgramId(nextId)
-    setLoadedProgramId('')
-    setStudents([])
-    setMessage('')
-  }
+  function clearSelection(){requestVersion.current+=1;setLoadedSelection('');setStudents([]);setMessage('')}
   async function loadAttendance(){
-    if(!programId)return setMessage('프로그램을 선택하세요.')
-    const res=await fetch(`/api/admin/attendance?program_id=${programId}&session_date=${date}`,{headers})
-    const data=await res.json(); if(!res.ok)return setMessage(data.error||'출석을 불러오지 못했습니다.')
-    setStudents(data.items??[]); setLoadedProgramId(programId); setMessage('')
+    if(!programId||!date)return setMessage('프로그램과 수업일을 선택해 주세요.')
+    const version=++requestVersion.current
+    setBusy(true);setMessage('')
+    try{const response=await fetch(`/api/admin/attendance?program_id=${encodeURIComponent(programId)}&session_date=${date}`,{headers,cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'출석을 불러오지 못했습니다.');if(version!==requestVersion.current)return;setStudents(data.items??[]);setLoadedSelection(selection)}
+    catch(error){if(version===requestVersion.current)setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
+    finally{setBusy(false)}
   }
-  function setStatus(id:string,status:string){setStudents(items=>items.map(x=>x.id===id?{...x,status}:x))}
   async function save(){
-    if(!students.length||!loadedProgramId||loadedProgramId!==programId){setMessage('현재 프로그램의 학생을 다시 불러온 뒤 저장하세요.');return}
-    const res=await fetch('/api/admin/attendance',{method:'POST',headers,body:JSON.stringify({program_id:loadedProgramId,session_date:date,records:students.map(x=>({student_id:x.id,status:x.status,note:x.note}))})})
-    const data=await res.json(); setMessage(res.ok?'출석을 저장했습니다.':data.error||'저장 실패')
+    if(!hasLoaded||!students.length||saving)return
+    setSaving(true);setMessage('')
+    try{const response=await fetch('/api/admin/attendance',{method:'POST',headers,body:JSON.stringify({program_id:programId,session_date:date,records:students.map(student=>({student_id:student.id,status:student.status,note:student.note}))})});const data=await response.json();if(!response.ok)throw new Error(data.error||'저장하지 못했습니다.');setMessage('출석을 저장했습니다.')}
+    catch(error){setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 저장해 주세요.')}
+    finally{setSaving(false)}
   }
-
-  return <main style={{maxWidth:1100,margin:'0 auto',padding:32,fontFamily:'Arial, Apple SD Gothic Neo, sans-serif'}}>
-    <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'flex-start',marginBottom:24}}>
-      <div><a href="/" style={{color:'#f26522',textDecoration:'none'}}>← 관리자</a><h1 style={{margin:'8px 0 4px'}}>대면 출석</h1><p style={{margin:0,color:'#6b7280'}}>수업일을 선택하고 학생 전체를 한 번에 체크합니다.</p></div>
-      <div style={{display:'flex',gap:8}}><input type="password" value={adminKey} onChange={e=>setAdminKey(e.target.value)} placeholder="관리 키" style={{padding:10,border:'1px solid #ddd',borderRadius:10}}/><button onClick={loadPrograms} style={{padding:'10px 14px',border:0,borderRadius:10,background:'#111827',color:'#fff'}}>불러오기</button></div>
-    </div>
-    <section style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:16,overflow:'hidden'}}>
-      <div style={{display:'flex',gap:10,padding:18,borderBottom:'1px solid #eee',flexWrap:'wrap'}}>
-        <select value={programId} onChange={e=>changeProgram(e.target.value)} style={{padding:10,border:'1px solid #ddd',borderRadius:10,minWidth:280}}><option value="">프로그램 선택</option>{programs.map(p=><option key={p.id} value={p.id}>{p.institution?.name} · {p.name}</option>)}</select>
-        <input type="date" value={date} onChange={e=>{setDate(e.target.value);setLoadedProgramId('');setStudents([])}} style={{padding:10,border:'1px solid #ddd',borderRadius:10}}/>
-        <button onClick={loadAttendance} style={{padding:'10px 14px',border:0,borderRadius:10,background:'#f26522',color:'#fff'}}>학생 불러오기</button>
+  return <Workspace current="/attendance" title="대면 출석" description="수업일의 학생 명단을 확인하고 출석을 기록하세요.">
+    <AdminAccess value={adminKey} onChange={value=>{setAdminKey(value);setConnected(false);clearSelection()}} onLoad={loadPrograms} loaded={connected} busy={busy||saving}/>
+    <section className="surface">
+      <div className="toolbar">
+        <label className="field"><span>프로그램</span><select value={programId} disabled={saving} onChange={event=>{clearSelection();setProgramId(event.target.value)}}><option value="">프로그램 선택</option>{programs.map(program=><option key={program.id} value={program.id}>{program.institution?.name} · {program.name}</option>)}</select></label>
+        <label className="field"><span>수업일</span><input type="date" value={date} disabled={saving} onChange={event=>{clearSelection();setDate(event.target.value)}}/></label>
+        <button className="button button-dark" disabled={busy||saving||!programId} onClick={loadAttendance}><Icon name="people" size={17}/>{busy?'불러오는 중…':'학생 불러오기'}</button>
       </div>
-      <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:720}}><thead><tr style={{background:'#fafafa'}}><th style={{textAlign:'left',padding:14}}>학생</th><th>학년</th><th>출석</th><th>비고</th></tr></thead><tbody>{students.map(s=><tr key={s.id} style={{borderTop:'1px solid #eee'}}><td style={{padding:14,fontWeight:700}}>{s.name}</td><td style={{textAlign:'center'}}>{s.grade}학년</td><td style={{textAlign:'center'}}>{['present','absent','late','excused'].map(v=><button key={v} onClick={()=>setStatus(s.id,v)} style={{margin:3,padding:'8px 10px',borderRadius:999,border:s.status===v?'1px solid #f26522':'1px solid #ddd',background:s.status===v?'#fff7ed':'#fff'}}>{v==='present'?'출석':v==='absent'?'결석':v==='late'?'지각':'인정결석'}</button>)}</td><td><input value={s.note} onChange={e=>setStudents(items=>items.map(x=>x.id===s.id?{...x,note:e.target.value}:x))} style={{padding:8,border:'1px solid #ddd',borderRadius:8}}/></td></tr>)}</tbody></table></div>
-      <div style={{padding:18,textAlign:'right'}}><button onClick={save} disabled={!students.length||loadedProgramId!==programId} style={{padding:'11px 18px',border:0,borderRadius:10,background:'#f26522',color:'#fff',fontWeight:700,opacity:!students.length||loadedProgramId!==programId?.55:1}}>출석 저장</button></div>
+      <div className="section-heading"><h2>학생 출석부</h2><span className="meta">{hasLoaded?`${students.length}명`:'수업을 선택해 주세요'}</span></div>
+      {!hasLoaded?<EmptyState icon="attendance" title="오늘 함께할 학생을 불러오세요" description="프로그램과 수업일을 선택하면 출석을 한 번에 기록할 수 있습니다."/>:!students.length?<EmptyState icon="people" title="등록된 학생이 없습니다" description="기관·학생 관리에서 이 프로그램의 학생을 먼저 등록해 주세요."/>:<div className="table-scroll"><table className="data-table attendance-table"><thead><tr><th>학생</th><th>출석 상태</th><th>수업 메모</th></tr></thead><tbody>{students.map(student=><tr key={student.id}><td><span className="table-name">{student.name}</span><small>{student.grade}학년{student.student_number?` · ${student.student_number}`:''}</small></td><td><div className="attendance-choices" role="group" aria-label={`${student.name} 출석 상태`}>{statuses.map(status=><button key={status.value} aria-pressed={student.status===status.value} disabled={saving} className={student.status===status.value?`selected ${status.value}`:''} onClick={()=>setStudents(items=>items.map(item=>item.id===student.id?{...item,status:status.value}:item))}>{status.label}</button>)}</div></td><td><input className="field-note" aria-label={`${student.name} 수업 메모`} value={student.note} disabled={saving} placeholder="선택 입력" onChange={event=>setStudents(items=>items.map(item=>item.id===student.id?{...item,note:event.target.value}:item))}/></td></tr>)}</tbody></table></div>}
+      <div className="save-footer"><div>{hasLoaded&&students.length?<div className="attendance-counts">{statuses.map(status=><span key={status.value}>{status.label}<b>{students.filter(student=>student.status===status.value).length}</b></span>)}</div>:<p>출석 상태를 확인한 뒤 저장해 주세요.</p>}</div><button className="button button-primary" disabled={!hasLoaded||!students.length||saving||busy} onClick={save}><Icon name="check" size={17}/>{saving?'저장 중…':'출석 저장'}</button></div>
     </section>
-    {message&&<p style={{marginTop:16,color:'#9a3412'}}>{message}</p>}
-  </main>
+    <Notice>{message}</Notice>
+  </Workspace>
 }

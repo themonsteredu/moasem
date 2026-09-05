@@ -1,6 +1,7 @@
 'use client'
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
+import { AdminAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
 
 type Video = {
   id: string
@@ -117,13 +118,21 @@ export default function WrongTypesPage() {
   const [typeEditorOpen, setTypeEditorOpen] = useState(false)
   const [videoEditorOpen, setVideoEditorOpen] = useState(false)
   const [descriptionLanguage, setDescriptionLanguage] = useState<DescriptionLanguage>('ko')
-  const [message, setMessage] = useState('관리 키를 입력하고 목록을 불러오세요.')
+  const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     const saved = sessionStorage.getItem('moasem-admin-key')
     if (saved) setAdminKey(saved)
   }, [])
+
+  useEffect(() => {
+    const open = tab === 'types' ? typeEditorOpen : videoEditorOpen
+    if (open && window.matchMedia('(max-width: 960px)').matches) {
+      document.getElementById('catalog-active-editor')?.scrollIntoView({ block: 'start', behavior: 'auto' })
+    }
+  }, [tab, typeEditorOpen, videoEditorOpen, draft.id, videoDraft.id])
 
   const headers = useMemo(() => ({ 'Content-Type': 'application/json', 'x-moasem-admin-key': adminKey }), [adminKey])
   const domains = useMemo(() => Array.from(new Set(items.map(item => item.domain).filter(Boolean) as string[])).sort(), [items])
@@ -162,6 +171,7 @@ export default function WrongTypesPage() {
       if (!videosResponse.ok) throw new Error(videosData.error || '영상을 불러오지 못했습니다.')
       setItems(typesData.items ?? [])
       setVideos(videosData.items ?? [])
+      setLoaded(true)
       setMessage('')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '목록을 불러오지 못했습니다.')
@@ -279,35 +289,11 @@ export default function WrongTypesPage() {
     ? { ...draft, description_ko: value }
     : descriptionLanguage === 'vi' ? { ...draft, description_vi: value } : { ...draft, description_zh_cn: value })
 
-  return <div className="catalog-shell">
-    <aside className="catalog-sidebar">
-      <a href="/" className="catalog-brand">MOASEM<small>기관 위탁 수학 학습관리</small></a>
-      <nav className="catalog-side-nav" aria-label="관리자 메뉴">
-        <a href="/">대시보드</a><a href="/">기관</a><a href="/">프로그램</a><a href="/">학생</a>
-        <a href="/attendance">출석</a><a href="/reports">보호자 리포트</a><a className="active" href="/wrong-types">오답·영상</a><a href="/">설정</a>
-      </nav>
-      <div className="catalog-side-note"><b>285개 유형 준비</b><span>CSV로 일괄 등록하고 영상 연결 상태를 한눈에 관리하세요.</span></div>
-    </aside>
-    <main className="catalog-page">
-    <div className="catalog-mobile-brand"><a href="/">MOASEM</a><span>오답·영상</span></div>
-    <header className="catalog-header">
-      <div>
-        <span className="catalog-eyebrow">LEARNING CONTENT</span>
-        <h1>오답 유형 · 보충영상</h1>
-        <p>학생의 막힌 지점을 정확히 찾고, 필요한 설명 영상까지 한 흐름으로 연결합니다.</p>
-      </div>
-      <div className="catalog-keybox">
-        <input type="password" value={adminKey} onChange={event => setAdminKey(event.target.value)} placeholder="관리 키" />
-        <button onClick={loadAll} disabled={busy}>{busy ? '처리 중' : '목록 불러오기'}</button>
-      </div>
-    </header>
+  return <Workspace current="/wrong-types" title="오답·보충영상" description="어려워하는 유형에 필요한 설명 영상을 연결하세요." action={<div className="catalog-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><label className="catalog-button primary file-control">CSV 일괄등록<input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={busy}/></label></div>}>
+    <AdminAccess value={adminKey} onChange={value => { setAdminKey(value); setLoaded(false) }} onLoad={loadAll} busy={busy} loaded={loaded}/>
 
     <section className="catalog-overview" aria-label="콘텐츠 현황">
-      <div><span>전체 유형</span><strong>{items.length}</strong></div><div><span>영상 연결</span><strong>{connectedCount}</strong></div><div><span>연결 필요</span><strong>{items.length - connectedCount}</strong></div><div><span>보충영상</span><strong>{videos.length}</strong></div>
-      <div className="catalog-actions">
-        <button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button>
-        <label className="catalog-button primary">CSV 일괄등록<input type="file" accept=".csv,text/csv" onChange={importCsv} hidden /></label>
-      </div>
+      <div><span>전체 유형</span><strong>{loaded ? items.length : '—'}</strong></div><div><span>영상 연결</span><strong>{loaded ? connectedCount : '—'}</strong></div><div><span>연결 필요</span><strong>{loaded ? items.length - connectedCount : '—'}</strong></div><div><span>보충영상</span><strong>{loaded ? videos.length : '—'}</strong></div>
     </section>
 
     <nav className="catalog-tabs" aria-label="관리 항목">
@@ -317,11 +303,11 @@ export default function WrongTypesPage() {
 
     {tab === 'types' ? <>
       <section className="catalog-filters">
-        <input value={search} onChange={event => setSearch(event.target.value)} placeholder="유형명·코드 검색" />
-        <select value={grade} onChange={event => setGrade(event.target.value)}><option value="all">전체 학년</option>{[1,2,3,4,5,6].map(value => <option key={value} value={value}>{value}학년</option>)}</select>
-        <select value={semester} onChange={event => setSemester(event.target.value)}><option value="all">전체 학기</option><option value="1">1학기</option><option value="2">2학기</option></select>
-        <select value={domain} onChange={event => setDomain(event.target.value)}><option value="all">전체 영역</option>{domains.map(value => <option key={value}>{value}</option>)}</select>
-        <select value={connection} onChange={event => setConnection(event.target.value)}><option value="all">전체 연결 상태</option><option value="connected">영상 연결</option><option value="unconnected">영상 미연결</option></select>
+        <input value={search} onChange={event => setSearch(event.target.value)} placeholder="유형명·코드 검색" aria-label="오답 유형 검색" />
+        <select aria-label="학년 필터" value={grade} onChange={event => setGrade(event.target.value)}><option value="all">전체 학년</option>{[1,2,3,4,5,6].map(value => <option key={value} value={value}>{value}학년</option>)}</select>
+        <select aria-label="학기 필터" value={semester} onChange={event => setSemester(event.target.value)}><option value="all">전체 학기</option><option value="1">1학기</option><option value="2">2학기</option></select>
+        <select aria-label="영역 필터" value={domain} onChange={event => setDomain(event.target.value)}><option value="all">전체 영역</option>{domains.map(value => <option key={value}>{value}</option>)}</select>
+        <select aria-label="영상 연결 필터" value={connection} onChange={event => setConnection(event.target.value)}><option value="all">전체 연결 상태</option><option value="connected">영상 연결</option><option value="unconnected">영상 미연결</option></select>
         <button className="catalog-button dark" onClick={startNewType}>+ 새 유형</button>
       </section>
 
@@ -340,11 +326,11 @@ export default function WrongTypesPage() {
                 </tr>
               })}</tbody>
             </table>
-            {!filteredItems.length && (items.length ? <div className="catalog-empty compact"><b>조건에 맞는 유형이 없습니다.</b><span>검색어나 필터를 바꿔보세요.</span></div> : <div className="catalog-onboarding"><div className="catalog-math-mark" aria-hidden="true"><span>÷</span><span>+</span><span>×</span></div><span className="catalog-eyebrow">GET STARTED</span><h2>285개 오답 유형을 채워볼까요?</h2><p>양식을 내려받아 목록을 작성한 뒤 한 번에 등록하면 됩니다.</p><ol><li><b>1</b><span><strong>CSV 양식 받기</strong>필요한 열이 준비된 빈 양식을 받습니다.</span></li><li><b>2</b><span><strong>목록 작성하기</strong>유형 코드, 이름, 학년을 채웁니다.</span></li><li><b>3</b><span><strong>한 번에 등록하기</strong>완성한 파일을 올리면 목록이 만들어집니다.</span></li></ol><div className="catalog-empty-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><label className="catalog-button primary">작성한 CSV 등록<input type="file" accept=".csv,text/csv" onChange={importCsv} hidden /></label></div></div>)}
+            {!filteredItems.length && (!loaded ? <EmptyState title="오답 유형을 불러오세요" description="관리 키로 연결하면 등록된 유형과 보충영상을 확인할 수 있습니다." icon="video"/> : items.length ? <div className="catalog-empty compact"><b>조건에 맞는 유형이 없습니다</b><span>검색어나 필터를 바꿔 주세요.</span></div> : <div className="catalog-onboarding"><span className="eyebrow">콘텐츠 등록</span><h2>오답 유형을 먼저 등록해 주세요</h2><p>기존 유형표를 CSV로 올리거나 하나씩 등록할 수 있습니다.</p><ol><li><b>1</b>양식 받기</li><li><b>2</b>유형표 작성</li><li><b>3</b>등록 후 영상 연결</li></ol><div className="catalog-empty-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><button className="catalog-button primary" onClick={startNewType}>새 유형 등록</button></div></div>)}
           </div>
         </section>
 
-        {typeEditorOpen ? <aside className="catalog-editor">
+        {typeEditorOpen ? <aside className="catalog-editor" id="catalog-active-editor">
           <div className="catalog-editor-head"><div><span>{draft.id ? '선택 유형 수정' : '새 유형 등록'}</span><h2>{draft.name || '오답 유형 정보'}</h2></div><button onClick={() => setTypeEditorOpen(false)}>닫기</button></div>
           <form onSubmit={event => { event.preventDefault(); saveType(false) }} className="catalog-form">
             <div className="catalog-row2"><label>유형 코드 *<input value={draft.code} onChange={event => setDraft({ ...draft, code: event.target.value })} required placeholder="예: E3-NO-001" /></label><label>표시 순서<input type="number" value={draft.display_order} onChange={event => setDraft({ ...draft, display_order: Number(event.target.value) })} /></label></div>
@@ -356,14 +342,14 @@ export default function WrongTypesPage() {
             <label className="catalog-check"><input type="checkbox" checked={draft.active} onChange={event => setDraft({ ...draft, active: event.target.checked })} />현재 사용하는 유형</label>
             <div className="catalog-savebar"><button type="submit" className="catalog-button primary" disabled={busy}>저장</button><button type="button" className="catalog-button dark" disabled={busy || !draft.id} onClick={() => saveType(true)}>저장 후 다음 미연결</button></div>
           </form>
-        </aside> : <aside className="catalog-guide"><span className="catalog-guide-icon">↗</span><span className="catalog-eyebrow">QUICK GUIDE</span><h2>유형을 고르면<br />여기서 바로 연결합니다</h2><p>목록에서 유형을 선택하거나 새 유형을 등록하세요. 보호자 설명은 언어별 탭으로 간단히 관리할 수 있습니다.</p><button className="catalog-button primary" onClick={startNewType}>새 유형 등록</button><div className="catalog-guide-progress"><span><b style={{width: items.length ? `${Math.round((connectedCount / items.length) * 100)}%` : '0%'}} /></span><small>영상 연결률 {items.length ? Math.round((connectedCount / items.length) * 100) : 0}%</small></div></aside>}
+        </aside> : <aside className="catalog-guide"><span className="catalog-guide-icon"><Icon name="report"/></span><span className="catalog-eyebrow">유형별 영상 연결</span><h2>유형을 고르면 여기서 바로 연결합니다</h2><p>목록에서 유형을 선택하거나 새 유형을 등록하세요. 보호자 설명은 언어별 탭으로 간단히 관리할 수 있습니다.</p><button className="catalog-button primary" onClick={startNewType}>새 유형 등록</button><div className="catalog-guide-progress"><span><b style={{width: items.length ? `${Math.round((connectedCount / items.length) * 100)}%` : '0%'}} /></span><small>영상 연결률 {items.length ? Math.round((connectedCount / items.length) * 100) : 0}%</small></div></aside>}
       </div>
     </> : <div className={`catalog-workspace videos ${videoEditorOpen ? 'editor-open' : ''}`}>
       <section className="catalog-list-panel">
         <div className="catalog-section-title"><div><h2>영상 보관함</h2><span>유형에 연결할 설명 영상을 관리합니다.</span></div><button className="catalog-button dark" onClick={startNewVideo}>+ 새 영상</button></div>
         <div className="catalog-table-wrap"><table className="catalog-table"><thead><tr><th>영상명</th><th>언어</th><th>시간</th><th>공개 방식</th><th>연결 유형</th><th>상태</th></tr></thead><tbody>{videos.map(video => <tr key={video.id} className={videoDraft.id === video.id && videoEditorOpen ? 'selected' : ''} onClick={() => editVideo(video)}><td><b>{video.title}</b><small>{video.provider}</small></td><td>{languageLabel[video.language]}</td><td>{formatDuration(video.duration_seconds)}</td><td>{visibilityLabel[video.visibility]}</td><td>{linkedCount(video.id)}개</td><td>{video.active ? '사용' : '보관'}</td></tr>)}</tbody></table>{!videos.length && <div className="catalog-empty compact"><b>아직 등록된 영상이 없습니다.</b><span>첫 보충영상을 등록해보세요.</span><button className="catalog-button primary" onClick={startNewVideo}>새 영상 등록</button></div>}</div>
       </section>
-      {videoEditorOpen ? <aside className="catalog-editor">
+      {videoEditorOpen ? <aside className="catalog-editor" id="catalog-active-editor">
         <div className="catalog-editor-head"><div><span>{videoDraft.id ? '영상 수정' : '새 영상 등록'}</span><h2>{videoDraft.title || '보충영상 정보'}</h2></div><button onClick={() => setVideoEditorOpen(false)}>닫기</button></div>
         <form onSubmit={saveVideo} className="catalog-form">
           <label>영상 제목 *<input value={videoDraft.title} onChange={event => setVideoDraft({ ...videoDraft, title: event.target.value })} required /></label>
@@ -374,9 +360,8 @@ export default function WrongTypesPage() {
           {videoDraft.url && <a href={videoDraft.url} target="_blank" rel="noreferrer" className="catalog-preview-link">새 창에서 영상 확인</a>}
           <button className="catalog-button primary" disabled={busy}>영상 저장</button>
         </form>
-      </aside> : <aside className="catalog-guide video"><span className="catalog-guide-icon">▶</span><span className="catalog-eyebrow">VIDEO LIBRARY</span><h2>보충영상을 모아두고<br />필요한 유형에 연결하세요</h2><p>YouTube 일부 공개 영상도 주소만 입력하면 유형과 바로 연결할 수 있습니다.</p><button className="catalog-button primary" onClick={startNewVideo}>새 영상 등록</button></aside>}
+      </aside> : <aside className="catalog-guide video"><span className="catalog-guide-icon"><Icon name="video"/></span><span className="catalog-eyebrow">보충영상 보관함</span><h2>보충영상을 모아두고 필요한 유형에 연결하세요</h2><p>YouTube 일부 공개 영상도 주소만 입력하면 유형과 바로 연결할 수 있습니다.</p><button className="catalog-button primary" onClick={startNewVideo}>새 영상 등록</button></aside>}
     </div>}
-    {message && <div className="catalog-message" role="status">{message}</div>}
-    </main>
-  </div>
+    <Notice>{message}</Notice>
+  </Workspace>
 }
