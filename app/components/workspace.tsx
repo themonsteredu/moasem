@@ -45,10 +45,10 @@ export function Workspace({ current, title, description, action, children }: { c
   </div>
 }
 
-export function AdminAccess({ value, onChange, onLoad, busy = false, loaded = false }: { value: string; onChange: (value: string) => void; onLoad: () => void; busy?: boolean; loaded?: boolean }) {
+export function AdminAccess({ value, onChange, onLoad, onDisconnect, busy = false, loaded = false }: { value: string; onChange: (value: string) => void; onLoad: () => void; onDisconnect: () => void; busy?: boolean; loaded?: boolean }) {
   return <form className="access-bar" onSubmit={event => { event.preventDefault(); onLoad() }}>
-    <div className="access-caption"><Icon name={loaded ? 'check' : 'lock'} size={17}/><span>{loaded ? '목록을 불러왔습니다' : '관리 키로 연결하세요'}</span></div>
-    <div className="access-controls"><label className="sr-only" htmlFor="admin-access-key">관리 키</label><input id="admin-access-key" type="password" disabled={busy} autoComplete="off" value={value} onChange={event => onChange(event.target.value)} placeholder="관리 키 입력"/><button className="button button-dark" disabled={busy}>{busy ? '불러오는 중…' : loaded ? '새로고침' : '불러오기'}</button></div>
+    <div className="access-caption" role="status"><Icon name={loaded ? 'check' : 'lock'} size={17}/><span>{busy ? '목록을 불러오는 중…' : loaded ? '연결됨 · 메뉴를 옮겨도 자동으로 불러옵니다' : '관리 키로 한 번 연결하세요'}</span></div>
+    <div className="access-controls">{!loaded&&<><label className="sr-only" htmlFor="admin-access-key">관리 키</label><input id="admin-access-key" type="password" disabled={busy} autoComplete="off" value={value} onChange={event => onChange(event.target.value)} placeholder="관리 키 입력" required/></>}<button className="button button-dark" disabled={busy}>{busy ? '불러오는 중…' : loaded ? '새로고침' : '연결하기'}</button>{loaded&&<button type="button" className="button" disabled={busy} onClick={onDisconnect}>연결 해제</button>}</div>
   </form>
 }
 

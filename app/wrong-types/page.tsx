@@ -1,6 +1,7 @@
 'use client'
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
+import { adminHeaders, useAdminConnection } from '../../lib/use-admin-connection'
 import { AdminAccess, EmptyState, Icon, Notice, Workspace } from '../components/workspace'
 
 type Video = {
@@ -105,7 +106,7 @@ function formatDuration(seconds: number | null) {
 
 export default function WrongTypesPage() {
   const [tab, setTab] = useState<Tab>('types')
-  const [adminKey, setAdminKey] = useState('')
+  const { adminKey, setAdminKey, headers, rememberKey, forgetKey, disconnect, storageMessage } = useAdminConnection(loadAll)
   const [items, setItems] = useState<WrongType[]>([])
   const [videos, setVideos] = useState<Video[]>([])
   const [draft, setDraft] = useState<WrongTypeDraft>(emptyType)
@@ -123,18 +124,12 @@ export default function WrongTypesPage() {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('moasem-admin-key')
-    if (saved) setAdminKey(saved)
-  }, [])
-
-  useEffect(() => {
     const open = tab === 'types' ? typeEditorOpen : videoEditorOpen
     if (open && window.matchMedia('(max-width: 960px)').matches) {
       document.getElementById('catalog-active-editor')?.scrollIntoView({ block: 'start', behavior: 'auto' })
     }
   }, [tab, typeEditorOpen, videoEditorOpen, draft.id, videoDraft.id])
 
-  const headers = useMemo(() => ({ 'Content-Type': 'application/json', 'x-moasem-admin-key': adminKey }), [adminKey])
   const domains = useMemo(() => Array.from(new Set(items.map(item => item.domain).filter(Boolean) as string[])).sort(), [items])
   const connectedCount = items.filter(item => primaryVideo(item)).length
   const linkedCount = (videoId: string) => items.filter(item => item.video_links?.some(link => link.video?.id === videoId)).length
@@ -157,23 +152,34 @@ export default function WrongTypesPage() {
     })
   }, [items, search, grade, semester, domain, connection])
 
-  async function loadAll() {
-    if (!adminKey) return setMessage('관리 키를 먼저 입력하세요.')
+  async function loadAll(key = adminKey) {
+    if (!key) return setMessage('관리 키를 먼저 입력하세요.')
     setBusy(true)
-    sessionStorage.setItem('moasem-admin-key', adminKey)
     try {
       const [typesResponse, videosResponse] = await Promise.all([
-        fetch('/api/admin/wrong-types', { headers, cache: 'no-store' }),
-        fetch('/api/admin/videos', { headers, cache: 'no-store' }),
+        fetch('/api/admin/wrong-types', { headers: adminHeaders(key), cache: 'no-store' }),
+        fetch('/api/admin/videos', { headers: adminHeaders(key), cache: 'no-store' }),
       ])
+      if (typesResponse.status === 401 || videosResponse.status === 401) {
+        forgetKey()
+        throw new Error('관리 키가 맞지 않거나 변경되었습니다. 다시 연결해 주세요.')
+      }
       const [typesData, videosData] = await Promise.all([typesResponse.json(), videosResponse.json()])
       if (!typesResponse.ok) throw new Error(typesData.error || '오답 유형을 불러오지 못했습니다.')
       if (!videosResponse.ok) throw new Error(videosData.error || '영상을 불러오지 못했습니다.')
       setItems(typesData.items ?? [])
       setVideos(videosData.items ?? [])
       setLoaded(true)
+      rememberKey(key)
       setMessage('')
     } catch (error) {
+      setLoaded(false)
+      setItems([])
+      setVideos([])
+      setDraft(emptyType)
+      setVideoDraft(emptyVideo)
+      setTypeEditorOpen(false)
+      setVideoEditorOpen(false)
       setMessage(error instanceof Error ? error.message : '목록을 불러오지 못했습니다.')
     } finally {
       setBusy(false)
@@ -290,7 +296,7 @@ export default function WrongTypesPage() {
     : descriptionLanguage === 'vi' ? { ...draft, description_vi: value } : { ...draft, description_zh_cn: value })
 
   return <Workspace current="/wrong-types" title="오답·보충영상" description="어려워하는 유형에 필요한 설명 영상을 연결하세요." action={<div className="catalog-actions"><button className="catalog-button secondary" onClick={downloadTemplate}>CSV 양식 받기</button><label className="catalog-button primary file-control">CSV 일괄등록<input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={busy}/></label></div>}>
-    <AdminAccess value={adminKey} onChange={value => { setAdminKey(value); setLoaded(false) }} onLoad={loadAll} busy={busy} loaded={loaded}/>
+    <AdminAccess value={adminKey} onChange={setAdminKey} onLoad={loadAll} onDisconnect={disconnect} busy={busy} loaded={loaded}/>
 
     <section className="catalog-overview" aria-label="콘텐츠 현황">
       <div><span>전체 유형</span><strong>{loaded ? items.length : '—'}</strong></div><div><span>영상 연결</span><strong>{loaded ? connectedCount : '—'}</strong></div><div><span>연결 필요</span><strong>{loaded ? items.length - connectedCount : '—'}</strong></div><div><span>보충영상</span><strong>{loaded ? videos.length : '—'}</strong></div>
@@ -362,6 +368,6 @@ export default function WrongTypesPage() {
         </form>
       </aside> : <aside className="catalog-guide video"><span className="catalog-guide-icon"><Icon name="video"/></span><span className="catalog-eyebrow">보충영상 보관함</span><h2>보충영상을 모아두고 필요한 유형에 연결하세요</h2><p>YouTube 일부 공개 영상도 주소만 입력하면 유형과 바로 연결할 수 있습니다.</p><button className="catalog-button primary" onClick={startNewVideo}>새 영상 등록</button></aside>}
     </div>}
-    <Notice>{message}</Notice>
+    <Notice>{storageMessage||message}</Notice>
   </Workspace>
 }

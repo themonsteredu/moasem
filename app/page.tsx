@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState, ReactNode } from 'react'
+import { FormEvent, useState, ReactNode } from 'react'
+import { adminHeaders, useAdminConnection } from '../lib/use-admin-connection'
 import { AdminAccess, EmptyState, Icon, Notice, Workspace } from './components/workspace'
 
 type Institution={id:string;name:string;manager_name:string|null;manager_phone:string|null;manager_notifications_enabled:boolean;portal_token:string|null}
@@ -14,7 +15,7 @@ function Field({title,children}:{title:string;children:ReactNode}){return <label
 
 export default function Home(){
   const [tab,setTab]=useState<Tab>('institutions')
-  const [adminKey,setAdminKey]=useState('')
+  const {adminKey,setAdminKey,headers,rememberKey,forgetKey,disconnect,storageMessage}=useAdminConnection(loadAll)
   const [institutions,setInstitutions]=useState<Institution[]>([])
   const [programs,setPrograms]=useState<Program[]>([])
   const [students,setStudents]=useState<Student[]>([])
@@ -22,20 +23,19 @@ export default function Home(){
   const [loaded,setLoaded]=useState(false)
   const [busy,setBusy]=useState(false)
   const [saving,setSaving]=useState(false)
-  useEffect(()=>{const saved=sessionStorage.getItem('moasem-admin-key');if(saved)setAdminKey(saved)},[])
-  const headers=useMemo(()=>({'Content-Type':'application/json','x-moasem-admin-key':adminKey}),[adminKey])
   const counts={institutions:institutions.length,programs:programs.length,students:students.length}
 
-  async function loadAll(){
-    if(!adminKey){setMessage('관리 키를 입력해 주세요.');return}
+  async function loadAll(key=adminKey){
+    if(!key){setMessage('관리 키를 입력해 주세요.');return}
     setBusy(true)
     try{
-      const responses=await Promise.all(['/api/admin/institutions','/api/admin/programs','/api/admin/students'].map(url=>fetch(url,{headers,cache:'no-store'})))
+      const responses=await Promise.all(['/api/admin/institutions','/api/admin/programs','/api/admin/students'].map(url=>fetch(url,{headers:adminHeaders(key),cache:'no-store'})))
+      if(responses.some(response=>response.status===401)){forgetKey();throw new Error('관리 키가 맞지 않거나 변경되었습니다. 다시 연결해 주세요.')}
       if(responses.some(response=>!response.ok))throw new Error('목록을 불러오지 못했습니다. 관리 키를 확인해 주세요.')
       const [ia,pa,sa]=await Promise.all(responses.map(response=>response.json()))
       setInstitutions(ia.items??[]);setPrograms(pa.items??[]);setStudents(sa.items??[])
-      sessionStorage.setItem('moasem-admin-key',adminKey);setLoaded(true);setMessage('')
-    }catch(error){setMessage(error instanceof Error?error.message:'목록을 불러오지 못했습니다.')}
+      rememberKey(key);setLoaded(true);setMessage('')
+    }catch(error){setLoaded(false);setInstitutions([]);setPrograms([]);setStudents([]);setMessage(error instanceof Error?error.message:'목록을 불러오지 못했습니다.')}
     finally{setBusy(false)}
   }
   async function submit(event:FormEvent<HTMLFormElement>){
@@ -67,7 +67,7 @@ export default function Home(){
   }
 
   return <Workspace current="/" title="기관·학생 관리" description="함께하는 기관과 아이들의 수업을 관리하세요." action={<span className="heading-tag">운영 현황</span>}>
-    <AdminAccess value={adminKey} onChange={value=>{setAdminKey(value);setLoaded(false)}} onLoad={loadAll} busy={busy} loaded={loaded}/>
+    <AdminAccess value={adminKey} onChange={setAdminKey} onLoad={loadAll} onDisconnect={disconnect} busy={busy||saving} loaded={loaded}/>
     <section className="summary-strip" aria-label="등록 현황">
       {(['institutions','programs','students'] as Tab[]).map((key,index)=><button key={key} className={tab===key?'summary-item selected':'summary-item'} onClick={()=>setTab(key)} aria-pressed={tab===key} disabled={saving}><span className="summary-label">{['함께하는 기관','운영 프로그램','등록 학생'][index]}<Icon name="arrow" size={17}/></span><strong>{loaded?counts[key]:'—'}<small>{index===2?'명':'개'}</small></strong><span className="summary-note">{loaded?`${names[key]} 목록 보기`:'목록을 불러오면 표시됩니다'}</span></button>)}
     </section>
@@ -92,10 +92,10 @@ export default function Home(){
           {tab==='programs'&&<><Field title="기관 *"><select name="institution_id" required><option value="">기관 선택</option>{institutions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field title="프로그램명 *"><input name="name" required placeholder="예: 초등 수학 1기"/></Field><div className="form-columns"><Field title="시작일 *"><input type="date" name="starts_on" required/></Field><Field title="종료일 *"><input type="date" name="ends_on" required/></Field></div><div className="form-columns"><Field title="주차 수 *"><input name="week_count" type="number" min="1" required placeholder="12"/></Field><Field title="담당 강사"><input name="instructor_name" placeholder="강사 이름"/></Field></div><div className="form-columns"><Field title="대면 요일"><input name="in_person_weekdays" placeholder="예: 화"/></Field><Field title="줌 요일"><input name="zoom_weekdays" placeholder="예: 목, 토"/></Field></div><details className="form-details"><summary>줌 회의 정보</summary><Field title="회의 번호"><input name="zoom_meeting_number" inputMode="numeric"/></Field><Field title="회의 암호"><input name="zoom_password" autoComplete="off"/></Field></details></>}
           {tab==='students'&&<><Field title="프로그램 *"><select name="program_id" required><option value="">프로그램 선택</option>{programs.map(item=><option key={item.id} value={item.id}>{item.institution?.name} · {item.name}</option>)}</select></Field><div className="form-columns"><Field title="학생 이름 *"><input name="name" required/></Field><Field title="학년 *"><select name="grade" required>{Array.from({length:12},(_,index)=>index+1).map(grade=><option key={grade} value={grade}>{grade}학년</option>)}</select></Field></div><Field title="학생 번호"><input name="student_number" placeholder="선택 입력"/></Field><div className="form-divider">보호자 안내 정보</div><Field title="보호자 이름"><input name="guardian_name"/></Field><Field title="보호자 연락처 *"><input name="guardian_phone" type="tel" required placeholder="010-0000-0000"/></Field><Field title="안내 언어 *"><select name="guardian_language" defaultValue="ko"><option value="ko">한국어</option><option value="vi">베트남어</option><option value="zh-CN">중국어 간체</option></select></Field></>}
           </fieldset>
-          <button className="button button-primary full-width" disabled={saving||!adminKey}><Icon name="plus" size={17}/>{saving?'저장 중…':`${names[tab]} 등록`}</button>
+          <button className="button button-primary full-width" disabled={saving||busy||!loaded}><Icon name="plus" size={17}/>{saving?'저장 중…':`${names[tab]} 등록`}</button>
         </form>
       </aside>
     </div>
-    <Notice>{message}</Notice>
+    <Notice>{storageMessage||message}</Notice>
   </Workspace>
 }

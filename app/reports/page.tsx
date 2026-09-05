@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useState } from 'react'
+import { adminHeaders, useAdminConnection } from '../../lib/use-admin-connection'
 import { AdminAccess, Icon, Notice, Workspace } from '../components/workspace'
 
 type Student={id:string;name:string;grade:number;program:{id:string;name:string;institution:{id:string;name:string}|null}|null;guardian:{id:string;name:string|null;phone:string;language:string}|null}
@@ -8,7 +9,7 @@ const languageLabel:Record<string,string>={ko:'한국어',vi:'베트남어','zh-
 function localDate(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 
 export default function ReportsPage(){
-  const [adminKey,setAdminKey]=useState('')
+  const {adminKey,setAdminKey,headers,rememberKey,forgetKey,disconnect,storageMessage}=useAdminConnection(loadStudents)
   const [students,setStudents]=useState<Student[]>([])
   const [selectedStudentId,setSelectedStudentId]=useState('')
   const [language,setLanguage]=useState('ko')
@@ -17,14 +18,12 @@ export default function ReportsPage(){
   const [connected,setConnected]=useState(false)
   const [busy,setBusy]=useState(false)
   const [saving,setSaving]=useState(false)
-  useEffect(()=>{const saved=sessionStorage.getItem('moasem-admin-key');if(saved)setAdminKey(saved)},[])
-  const headers=useMemo(()=>({'Content-Type':'application/json','x-moasem-admin-key':adminKey}),[adminKey])
   const selectedStudent=students.find(student=>student.id===selectedStudentId)
-  async function loadStudents(){
-    if(!adminKey)return setMessage('관리 키를 입력해 주세요.')
+  async function loadStudents(key=adminKey){
+    if(!key)return setMessage('관리 키를 입력해 주세요.')
     setBusy(true)
-    try{const response=await fetch('/api/admin/students',{headers,cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'학생을 불러오지 못했습니다.');setStudents(data.items??[]);setConnected(true);sessionStorage.setItem('moasem-admin-key',adminKey);setMessage('')}
-    catch(error){setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
+    try{const response=await fetch('/api/admin/students',{headers:adminHeaders(key),cache:'no-store'});if(response.status===401){forgetKey();throw new Error('관리 키가 맞지 않거나 변경되었습니다. 다시 연결해 주세요.')}const data=await response.json();if(!response.ok)throw new Error(data.error||'학생을 불러오지 못했습니다.');setStudents(data.items??[]);setConnected(true);rememberKey(key);setMessage('')}
+    catch(error){setConnected(false);setStudents([]);selectStudent('');setMessage(error instanceof Error?error.message:'연결을 확인하고 다시 시도해 주세요.')}
     finally{setBusy(false)}
   }
   function selectStudent(id:string){setSelectedStudentId(id);setLanguage(students.find(student=>student.id===id)?.guardian?.language||'ko');setReportUrl('');setMessage('')}
@@ -38,7 +37,7 @@ export default function ReportsPage(){
   }
   async function copyReport(){try{await navigator.clipboard.writeText(reportUrl);setMessage('리포트 링크를 복사했습니다.')}catch{setMessage('자동 복사가 되지 않았습니다. 아래 주소를 선택해 복사해 주세요.')}}
   return <Workspace current="/reports" title="보호자 리포트" description="아이의 학습 결과와 가정에서 함께할 내용을 전달하세요." action={<span className="heading-tag">강사 직접 작성</span>}>
-    <AdminAccess value={adminKey} onChange={value=>{setAdminKey(value);setConnected(false)}} onLoad={loadStudents} loaded={connected} busy={busy||saving}/>
+    <AdminAccess value={adminKey} onChange={setAdminKey} onLoad={loadStudents} onDisconnect={disconnect} loaded={connected} busy={busy||saving}/>
     <div className="report-workspace">
       <section className="surface">
         <div className="section-heading"><div><span className="eyebrow">학습 안내</span><h2>리포트 작성</h2></div><Icon name="report"/></div>
@@ -67,6 +66,6 @@ export default function ReportsPage(){
         {reportUrl&&<div className="report-link"><strong>리포트가 준비됐어요</strong><p>보호자는 로그인 없이 볼 수 있습니다.</p><code>{reportUrl}</code><button className="button button-dark" onClick={copyReport}>링크 복사</button><a className="button" href={reportUrl} target="_blank" rel="noreferrer">열어보기</a></div>}
       </aside>
     </div>
-    <Notice>{message}</Notice>
+    <Notice>{storageMessage||message}</Notice>
   </Workspace>
 }
