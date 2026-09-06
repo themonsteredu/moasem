@@ -23,7 +23,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 }
 
 const nav = [
-  { href: '/homework', title: '과제 등록', icon: 'report' as const },
+  { href: '/homework', title: '과제 관리', icon: 'report' as const },
   { href: '/performance', title: '진단·성과보고서', icon: 'report' as const },
   { href: '/', title: '기관·학생 관리', icon: 'overview' as const },
   { href: '/instructors', title: '강사 관리', icon: 'people' as const },
