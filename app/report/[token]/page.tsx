@@ -1,5 +1,6 @@
 'use client'
 
+import { Brand } from '../../components/brand'
 import { useEffect, useState } from 'react'
 import { languageLocale } from '../../../lib/languages'
 import { reportResources, typeDescription, ReportResources } from '../../../lib/report-resources'
@@ -37,7 +38,7 @@ export default function ReportPage({params}:{params:{token:string}}){
   const expires=new Date(report.expires_at).toLocaleDateString(languageLocale(language))
   const resources=reportResources(report.resources,log?.video_url)
   return <main className="guardian-page" lang={language}>
-    <div className="guardian-brand"><strong>MOASEM</strong><span>{log?.lesson_date||''}</span></div>
+    <div className="guardian-brand"><Brand/><span>{log?.lesson_date||''}</span></div>
     <header className="guardian-header"><h1>{student?.name} · {l.grade(grade)}</h1>{language!=='ko'&&<small className="guardian-korean" lang="ko">{student?.name} · {koLabels.grade(grade)}</small>}{report.headline&&<p className="guardian-headline">{report.headline}</p>}</header>
     <section className="guardian-section">
       <SectionTitle number="01" primary={l.today} korean={koLabels.today} language={language}/>

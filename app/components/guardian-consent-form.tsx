@@ -1,5 +1,6 @@
 'use client'
 
+import { Brand } from './brand'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { consentCopy } from '../../lib/consent-view'
 import { isSupportedLanguage, languageLocale, SupportedLanguage } from '../../lib/languages'
@@ -48,7 +49,7 @@ export function GuardianConsentForm({ token, initialLanguage }: { token: string;
   if (error) return <main className="public-state consent-public" lang={language}><span className="eyebrow">MOASEM</span><h1><Bilingual primary={error === 'unavailable' ? l.unavailable : l.problem} korean={error === 'unavailable' ? ko.unavailable : ko.problem} language={language}/></h1><p><Bilingual primary={l.unavailableNote} korean={ko.unavailableNote} language={language}/></p>{error === 'connection' && <button className="button button-primary" onClick={() => setAttempt(value => value + 1)}>{l.retry}</button>}</main>
   if (!consent) return <main className="public-state consent-public" lang={language} role="status"><span className="eyebrow">MOASEM</span><p><Bilingual primary={l.loading} korean={ko.loading} language={language}/></p></main>
   return <main className="guardian-page consent-public" lang={language}>
-    <div className="guardian-brand"><strong>MOASEM</strong><span>{consent.institution_name}</span></div>
+    <div className="guardian-brand"><Brand/><span>{consent.institution_name}</span></div>
     <header className="guardian-header"><h1><Bilingual primary={l.title} korean={ko.title} language={language}/></h1><p className="consent-student-name">{consent.student_name}</p><p className="meta">{consent.program_name}</p></header>
     {consent.status === 'accepted' ? <section className="consent-received" role="status"><span className="consent-check" aria-hidden="true">✓</span><h2><Bilingual primary={l.received} korean={ko.received} language={language}/></h2><p><Bilingual primary={l.receivedNote} korean={ko.receivedNote} language={language}/></p><p><Bilingual primary={l.date} korean={ko.date} language={language}/><strong>{consent.consented_at ? new Date(consent.consented_at).toLocaleString(languageLocale(language), { timeZone: 'Asia/Seoul', timeZoneName: 'short' }) : '—'}</strong></p></section> : <>
       <section className="consent-document" aria-label={l.document}><h2>{consent.document.primary.title}</h2><p className="consent-prose">{consent.document.primary.body}</p></section>
