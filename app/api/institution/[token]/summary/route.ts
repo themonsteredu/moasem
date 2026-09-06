@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
+import { allRows } from '@/lib/learning-operations'
+import { weekBounds, wrongSummary } from '@/lib/performance'
+import { koreaToday } from '@/lib/student-progress'
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -64,8 +68,11 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       if (!page || page.length < pageSize) break
     }
 
+    const [homework, logs] = await Promise.all([allRows('homework','student_id,assigned_on,due_on,status',programIds),allRows('learning_logs','student_id,lesson_date,resource_snapshot,wrong_type_summary',programIds)])
+    const week=weekBounds(koreaToday())
+    const learning=(students??[]).map(student=>{const tasks=homework.filter(h=>h.student_id===student.id&&h.due_on>=week.start&&h.due_on<=week.end);const results=logs.filter(l=>l.student_id===student.id&&l.lesson_date>=week.start&&l.lesson_date<=week.end);return {student_id:student.id,total:tasks.length,submitted:tasks.filter(h=>h.status!=='assigned').length,wrong:wrongSummary(results).slice(0,3),legacy_summary:results.filter(l=>l.wrong_type_summary).slice(-1)[0]?.wrong_type_summary??''}})
     return NextResponse.json(
-      { institution, programs: programs ?? [], students: students ?? [], attendance },
+      { institution, programs: programs ?? [], students: students ?? [], attendance, learning, week },
       { headers: privateHeaders },
     )
   } catch {

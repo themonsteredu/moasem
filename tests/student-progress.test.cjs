@@ -17,7 +17,7 @@ afterEach(async () => { if (mounted) await act(async () => mounted.unmount()); m
 function setup(handler) {
  global.window = { location: { replace() { throw new Error('Unexpected redirect') } } }
  global.sessionStorage = { removeItem() {} }
- global.fetch = async (url, opts) => url === '/api/auth/session' ? response(200, { staff: { id: 'staff', name: '강사', role: 'instructor', instructor_id: 'teacher' } }) : handler(url, opts)
+ global.fetch = async (url, opts) => url === '/api/auth/session' ? response(200, { staff: { id: 'staff', name: '강사', role: 'instructor', instructor_id: 'teacher' } }) : url.endsWith('/homework') ? response(200,{items:[]}) : handler(url, opts)
 }
 async function mount() { await act(async () => { mounted = create(React.createElement(StaffProvider, null, React.createElement(StudentProgress, { studentId: id }))) }) }
 function button(text) { return mounted.root.findAllByType('button').find(b => b.props.children === text) }
@@ -35,13 +35,13 @@ test('Lost save response retries the exact same record without clearing the form
   return response(200, fixture)
  })
  await mount(); await act(async () => button('수업 기록 추가').props.onClick())
- await act(async () => { const f = mounted.root.findByType('form'); await Promise.all([f.props.onSubmit({ preventDefault() {} }), f.props.onSubmit({ preventDefault() {} })]) })
+ await act(async () => { const f = mounted.root.findAllByType('form').find(f=>!f.props['aria-label']); await Promise.all([f.props.onSubmit({ preventDefault() {} }), f.props.onSubmit({ preventDefault() {} })]) })
  assert.equal(posts.length, 1)
- assert.equal(mounted.root.findByType('fieldset').props.disabled, true)
+ assert.equal(mounted.root.findAllByType('form').find(f=>!f.props['aria-label']).findByType('fieldset').props.disabled, true)
  assert.ok(button('저장 결과 확인'))
- await act(async () => mounted.root.findByType('form').props.onSubmit({ preventDefault() {} }))
+ await act(async () => mounted.root.findAllByType('form').find(f=>!f.props['aria-label']).props.onSubmit({ preventDefault() {} }))
  assert.equal(posts.length, 2); assert.deepEqual(posts[0], posts[1])
- assert.equal(mounted.root.findAllByType('form').length, 0)
+ assert.equal(mounted.root.findAllByType('form').filter(f=>!f.props['aria-label']).length, 0)
  assert.match(JSON.stringify(mounted.toJSON()), /저장했습니다/)
 })
 test('Failed history load retains visible records and gives a retry message', async () => {
