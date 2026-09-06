@@ -19,7 +19,7 @@ function setup(handler) {
  global.sessionStorage = { removeItem() {} }
  global.fetch = async (url, opts) => url === '/api/auth/session' ? response(200, { staff: { id: 'staff', name: '강사', role: 'instructor', instructor_id: 'teacher' } }) : url.endsWith('/homework') ? response(200,{items:[]}) : handler(url, opts)
 }
-async function mount() { await act(async () => { mounted = create(React.createElement(StaffProvider, null, React.createElement(StudentProgress, { studentId: id }))) }) }
+async function mount(options) { await act(async () => { mounted = create(React.createElement(StaffProvider, null, React.createElement(StudentProgress, { studentId: id })), options) }) }
 function button(text) { return mounted.root.findAllByType('button').find(b => b.props.children === text) }
 test('Personal page authenticates instructor and shows current progress and report history', async () => {
  const urls = []; setup(async url => { urls.push(url); return response(200, fixture) }); await mount()
@@ -57,4 +57,17 @@ test('Inactive student cannot add progress', async () => {
 test('Progress validation rejects nonexistent and future dates, blank books and excessive text', () => {
  assert.equal(progressInput(form).book, '수학 3-2')
  for (const patch of [{ lesson_date: '2026-02-30' }, { lesson_date: '2099-01-01' }, { book: ' ' }, { teacher_note: 'a'.repeat(2001) }]) assert.throws(() => progressInput({ ...form, ...patch }))
+})
+for (const hash of ['', '#student-homework']) test(`Delayed student data scrolls only when the homework fragment was requested: ${hash || 'ordinary visit'}`, async () => {
+ let resolveData; const scrolls = []
+ setup(() => new Promise(resolve => { resolveData = resolve }))
+ global.window.location.hash = hash
+ await mount({ createNodeMock: element => element.props.id === 'student-homework' ? { scrollIntoView: options => scrolls.push(options) } : null })
+ assert.deepEqual(scrolls, [])
+ assert.equal(mounted.root.findAllByProps({ id: 'student-homework' }).length, 0)
+ await act(async () => { resolveData(response(200, fixture)) })
+ assert.equal(mounted.root.findAllByProps({ id: 'student-homework' }).length, 1)
+ assert.deepEqual(scrolls, hash ? [{ block: 'start' }] : [])
+ await act(async () => button('과제 새로고침').props.onClick())
+ assert.equal(scrolls.length, hash ? 1 : 0)
 })
