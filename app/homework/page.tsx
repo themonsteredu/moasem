@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { apiFetch, jsonHeaders } from '@/lib/staff-client'
 import { useStaffData } from '../components/staff-session'
 import { EmptyState, Notice, StaffAccess, Workspace } from '../components/workspace'
+import { HomeworkReview } from '../components/homework-review'
 
 type Program = { id: string; name: string; institution: { name: string } | null }
 type Student = { id: string; name: string; grade: number; student_number: string | null }
@@ -13,6 +14,7 @@ export default function HomeworkPage() {
   const [students, setStudents] = useState<Student[]>([]), [selected, setSelected] = useState<string[]>([]), [recent, setRecent] = useState<Recent[]>([])
   const [loading, setLoading] = useState(false), [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState('')
   const [form, setForm] = useState({ title: '', details: '', assigned_on: today(), due_on: today() })
+  const [reviewRefresh, setReviewRefresh] = useState(0)
   const revision = useRef(0), pending = useRef<Record<string, unknown> | null>(null), sending = useRef(false)
   useStaffData(loadPrograms)
   useEffect(() => () => { revision.current++ }, [])
@@ -31,6 +33,7 @@ export default function HomeworkPage() {
   async function chooseProgram(id: string, clearMessage = true) {
     if (sending.current || pending.current) return
     const seq = ++revision.current
+    setReviewRefresh(v => v + 1)
     setProgramId(id); setStudents([]); setSelected([]); setRecent([]); setReady(false)
     if (clearMessage) setMessage('')
     if (!id) { setLoading(false); return }
@@ -64,13 +67,14 @@ export default function HomeworkPage() {
   }
   const locked = busy || uncertain
   const allSelected = students.length > 0 && selected.length === students.length
-  return <Workspace current="/homework" title="과제 일괄 등록" description="프로그램의 학생들에게 같은 과제를 한 번에 내 주세요.">
+  return <Workspace current="/homework" title="과제 관리" description="제출 현황을 확인하고, 프로그램 학생들에게 과제를 한 번에 내 주세요.">
     <StaffAccess onLoad={() => programId ? chooseProgram(programId) : loadPrograms()} busy={loading || locked}/>
+    <section className="surface homework-program"><label className="field"><span>프로그램</span><select disabled={locked} value={programId} onChange={e => void chooseProgram(e.target.value)}><option value="">프로그램 선택</option>{programs.map(p => <option value={p.id} key={p.id}>{p.institution?.name} · {p.name}</option>)}</select></label><p>선택한 프로그램의 과제 확인과 일괄 등록을 이 화면에서 할 수 있습니다.</p></section>
+    <HomeworkReview key={programId || 'none'} programId={programId} refresh={reviewRefresh} locked={locked}/>
     <section className="surface bulk-homework">
-      <div className="section-heading"><div><span className="eyebrow">과제 내기</span><h2>프로그램과 학생 선택</h2></div><span className="badge">{selected.length}명 선택</span></div>
+      <div className="section-heading"><div><span className="eyebrow">새 과제 내기</span><h2>과제 일괄 등록</h2></div><span className="badge">{selected.length}명 선택</span></div>
       <form aria-label="과제 일괄 등록" onSubmit={submit}>
         <fieldset disabled={locked}>
-          <label className="field"><span>프로그램</span><select required value={programId} onChange={e => void chooseProgram(e.target.value)}><option value="">프로그램 선택</option>{programs.map(p => <option value={p.id} key={p.id}>{p.institution?.name} · {p.name}</option>)}</select></label>
           <div className="bulk-selection-bar"><label><input type="checkbox" aria-label="학생 전체 선택" checked={allSelected} disabled={!ready || !students.length || students.length > 200} onChange={e => setSelected(e.target.checked ? students.map(s => s.id) : [])}/> 전체 선택</label><span>사용 중인 학생만 표시 · 한 번에 최대 200명</span></div>
           {!ready ? <p role="status">{loading ? '명단을 불러오는 중입니다…' : '프로그램을 선택하면 학생이 나타납니다.'}</p> : !students.length ? <EmptyState icon="people" title="과제를 받을 학생이 없습니다" description="학생을 등록하고 사용 상태를 확인해 주세요."/> : <div className="bulk-students">{students.map(s => <label className="bulk-student" key={s.id}><input type="checkbox" aria-label={`${s.name} 선택`} checked={selected.includes(s.id)} disabled={!selected.includes(s.id) && selected.length >= 200} onChange={e => setSelected(v => e.target.checked ? [...v, s.id] : v.filter(id => id !== s.id))}/><span>{s.name}<small>{s.grade}학년{s.student_number ? ` · ${s.student_number}` : ''}</small></span></label>)}</div>}
           <div className="progress-fields"><label className="field"><span>과제명</span><input required maxLength={200} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="예: 분수의 덧셈 연습"/></label><label className="field"><span>시작일</span><input type="date" required value={form.assigned_on} onChange={e => setForm({ ...form, assigned_on: e.target.value })}/></label><label className="field"><span>마감일</span><input type="date" required min={form.assigned_on} value={form.due_on} onChange={e => setForm({ ...form, due_on: e.target.value })}/></label></div>

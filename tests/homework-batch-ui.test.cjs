@@ -56,3 +56,17 @@ test('Rapid repeated submit sends once, and validation failure unlocks the form'
  assert.equal(mounted.root.findByType('fieldset').props.disabled,false)
  assert.match(JSON.stringify(mounted.toJSON()),/명단을 새로고침/)
 })
+test('A saved batch refreshes the overview and the shared program selector locks during an uncertain save',async()=>{
+ let reads=0,posts=0
+ await setup(async(url,opts)=>{
+  if(url.startsWith('/api/admin/homework-review?')){reads++;return response(200,{items:[],counts:{assigned:0,submitted:0,checked:0,overdue:0,all:0},total:0,page:1,page_size:30,today:'2026-09-06'})}
+  if(opts?.method==='POST'){posts++;if(posts===1)throw Error('lost response');return response(200,{batch:{count:1}})}
+  return response(200,{students,recent:[]})
+ })
+ await selectProgram('p')
+ assert.equal(reads,1)
+ await act(async()=>mounted.root.findByProps({'aria-label':'학생 A 선택'}).props.onChange({target:{checked:true}}))
+ await submit();assert.equal(mounted.root.findByType('select').props.disabled,true)
+ await submit();assert.equal(mounted.root.findByType('select').props.disabled,false)
+ assert.equal(reads,2)
+})
