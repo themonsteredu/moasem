@@ -24,6 +24,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 const nav = [
   { href: '/homework', title: '과제 관리', icon: 'report' as const },
+  { href: '/weekly-progress', title: '주차별 진도', icon: 'overview' as const },
   { href: '/performance', title: '진단·성과보고서', icon: 'report' as const },
   { href: '/', title: '기관·학생 관리', icon: 'overview' as const },
   { href: '/instructors', title: '강사 관리', icon: 'people' as const },
@@ -35,7 +36,7 @@ const nav = [
 
 export function Workspace({ current, title, description, action, children }: { current: string; title: string; description: string; action?: ReactNode; children: ReactNode }) {
   const { staff } = useStaff()
-  const menu = staff?.role === 'instructor' ? [{ href: '/my-students', title: '내 학생', icon: 'people' as const }, ...nav.filter(item => ['/attendance', '/reports', '/performance', '/homework'].includes(item.href))] : nav
+  const menu = staff?.role === 'instructor' ? [{ href: '/my-students', title: '내 학생', icon: 'people' as const }, ...nav.filter(item => ['/attendance', '/reports', '/performance', '/homework', '/weekly-progress'].includes(item.href))] : nav
   return <SessionGate><div className="workspace">
     <a className="skip-link" href="#workspace-content">본문으로 이동</a>
     <aside className="workspace-sidebar">

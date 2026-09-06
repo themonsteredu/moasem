@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Staff, canOpenWorkspace, staffHome } from '../../lib/staff-types'
 
 const SessionContext = createContext<{ staff: Staff | null; error: string; retry: () => void }>({ staff: null, error: '', retry: () => {} })
-const protectedPaths = ['/', '/attendance', '/reports', '/wrong-types', '/instructors', '/my-students', '/consents', '/performance', '/homework']
+const protectedPaths = ['/', '/attendance', '/reports', '/wrong-types', '/instructors', '/my-students', '/consents', '/performance', '/homework', '/weekly-progress']
 
 export function StaffProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()

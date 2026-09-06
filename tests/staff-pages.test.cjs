@@ -17,6 +17,7 @@ const pages = [
   { name: '강사 관리', path: '/instructors', Component: require('../app/instructors/page.tsx').default, urls: ['/api/admin/instructors'] },
   { name: '내 학생', path: '/my-students', Component: require('../app/my-students/page.tsx').default, urls: ['/api/admin/programs', '/api/admin/students'] },
   { name: '보호자 동의서', path: '/consents', Component: require('../app/consents/page.tsx').default, urls: ['/api/admin/consent-documents'] },
+  { name: '주차별 진도표', path: '/weekly-progress', Component: require('../app/weekly-progress/page.tsx').default, urls: ['/api/admin/programs'] },
 ]
 const originals = { fetch: global.fetch, window: global.window, sessionStorage: global.sessionStorage }
 let mounted
@@ -72,7 +73,7 @@ test('Instructor menu contains only own students, attendance and reports', async
   environment(instructor)
   await mount(pages[5])
   const nav = mounted.root.findByProps({ 'aria-label': '학습관리 메뉴' })
-  assert.deepEqual(nav.findAllByType('a').map(x => x.props.href), ['/my-students', '/homework', '/performance', '/attendance', '/reports'])
+  assert.deepEqual(nav.findAllByType('a').map(x => x.props.href), ['/my-students', '/homework', '/weekly-progress', '/performance', '/attendance', '/reports'])
 })
 test('Temporary session error offers retry without redirect or data request', async () => {
   const env = environment(admin, 503)
