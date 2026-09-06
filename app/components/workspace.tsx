@@ -1,5 +1,6 @@
 'use client'
 
+import { Brand } from './brand'
 import { ReactNode, useState } from 'react'
 import { SessionGate, useStaff, logout } from './staff-session'
 import { staffHome } from '../../lib/staff-types'
@@ -37,7 +38,7 @@ export function Workspace({ current, title, description, action, children }: { c
   return <SessionGate><div className="workspace">
     <a className="skip-link" href="#workspace-content">본문으로 이동</a>
     <aside className="workspace-sidebar">
-      <a href={staff ? staffHome(staff) : "/login"} className="wordmark" aria-label="모아셈 홈"><span className="brand-symbol">m<span>:</span></span><span>MOASEM<small>모아셈</small></span></a>
+      <a href={staff ? staffHome(staff) : "/login"} className="wordmark" aria-label="모아셈 홈"><Brand/></a>
       <div className="sidebar-label">학습 운영</div>
       <nav data-role={staff?.role} className="workspace-nav" aria-label="학습관리 메뉴">{menu.map(item => <a key={item.href} href={item.href} className={current === item.href ? 'active' : ''} aria-current={current === item.href ? 'page' : undefined}><Icon name={item.icon}/><span>{item.title}</span></a>)}</nav>
       <div className="sidebar-footer"><span className="sidebar-avatar">M</span><div><strong>MOAKIT</strong><small>기관 위탁 수학 학습관리</small></div></div>

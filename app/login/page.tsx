@@ -1,5 +1,6 @@
 'use client'
 
+import { Brand } from '../components/brand'
 import { FormEvent, useEffect, useState } from 'react'
 import { staffHome } from '../../lib/staff-types'
 import { jsonHeaders } from '../../lib/staff-client'
@@ -37,7 +38,7 @@ export default function LoginPage() {
     } catch (error) { setMessage(error instanceof Error ? error.message : '연결을 확인해 주세요.'); setBusy(false) }
   }
   return <main className="login-shell"><section className="surface login-card">
-    <div className="wordmark"><span className="brand-symbol">m<span>:</span></span><span>MOASEM<small>모아셈</small></span></div>
+    <div className="wordmark"><Brand/></div>
     <span className="eyebrow">기관 위탁 수학 학습관리</span>
     <h1>{setup ? '관리자 계정 만들기' : '다시 만나 반갑습니다'}</h1>
     <p>{setup ? '처음 한 번만 계정을 만들면, 다음부터 이메일로 로그인합니다.' : '관리자 또는 강사 계정으로 로그인해 주세요.'}</p>
