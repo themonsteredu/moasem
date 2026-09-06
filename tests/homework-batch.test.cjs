@@ -1,0 +1,8 @@
+require('./register.cjs')
+const {test}=require('node:test'),assert=require('node:assert/strict')
+const {homeworkBatchInput}=require('../lib/homework-batch.ts')
+const {randomUUID}=require('node:crypto')
+const body=()=>({id:randomUUID(),program_id:randomUUID(),student_ids:[randomUUID(),randomUUID()],title:' 분수 ',details:' 20쪽 ',assigned_on:'2026-09-06',due_on:'2026-09-10'})
+test('Batch input normalizes stable selection and trims homework',()=>{const b=body(),r=homeworkBatchInput(b);assert.deepEqual(r.student_ids,[...b.student_ids].sort());assert.equal(r.title,'분수');assert.equal(r.details,'20쪽')})
+test('Batch input rejects unsafe, empty, duplicate and oversized selections',()=>{for(const student_ids of [[],null,['bad'],Array.from({length:201},randomUUID)])assert.throws(()=>homeworkBatchInput({...body(),student_ids}));const id=randomUUID();assert.throws(()=>homeworkBatchInput({...body(),student_ids:[id,id.toUpperCase()]}));assert.throws(()=>homeworkBatchInput(null))})
+test('Batch input rejects invalid calendar dates and reversed due date',()=>{for(const b of [{assigned_on:'2026-02-30'},{due_on:'2026-09-01'},{title:' '},{details:'x'.repeat(2001)}])assert.throws(()=>homeworkBatchInput({...body(),...b}))})

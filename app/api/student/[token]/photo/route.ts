@@ -14,8 +14,9 @@ export async function POST(req:NextRequest,{params}:{params:{token:string}}){try
  else if(bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP')mime='image/webp'
  if(!mime)throw new AccessError(400,'JPG, PNG, WEBP 사진을 선택해 주세요.')
  const db=getSupabaseAdmin(),{data:h,error:he}=await db.from('homework').select('id,status,photos:homework_photos(id)').eq('id',homeworkId).eq('student_id',s.id).eq('program_id',s.program_id).maybeSingle();if(he)throw he
- if(!h||h.status==='checked')throw new AccessError(400,'사진을 올릴 수 없는 과제예요.')
+ if(!h)throw new AccessError(400,'사진을 올릴 수 없는 과제예요.')
  if(h.photos.some((p:{id:string})=>p.id===id))return NextResponse.json({ok:true},{headers:privateHeaders})
+ if(h.status==='checked')throw new AccessError(400,'선생님이 확인한 과제예요.')
  if(h.photos.length>=5)throw new AccessError(400,'사진은 과제당 5장까지 올릴 수 있어요.')
  const path=`${s.program_id}/${s.id}/${homeworkId}/${id}`
  const {error}=await db.storage.from('moasem-homework').upload(path,bytes,{contentType:mime,upsert:false});if(error&&String((error as {statusCode?:string}).statusCode)!=='409'&&!/already exists/i.test(error.message))throw error

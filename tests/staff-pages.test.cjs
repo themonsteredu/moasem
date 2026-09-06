@@ -72,7 +72,7 @@ test('Instructor menu contains only own students, attendance and reports', async
   environment(instructor)
   await mount(pages[5])
   const nav = mounted.root.findByProps({ 'aria-label': '학습관리 메뉴' })
-  assert.deepEqual(nav.findAllByType('a').map(x => x.props.href), ['/my-students', '/performance', '/attendance', '/reports'])
+  assert.deepEqual(nav.findAllByType('a').map(x => x.props.href), ['/my-students', '/homework', '/performance', '/attendance', '/reports'])
 })
 test('Temporary session error offers retry without redirect or data request', async () => {
   const env = environment(admin, 503)
