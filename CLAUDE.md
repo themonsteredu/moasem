@@ -23,27 +23,24 @@
 - 보호자 알림톡은 MOAKIT 카카오톡 채널을 Solapi로 연동한다.
 - 알림톡 본문에는 학습 상세를 넣지 않고 `리포트가 도착했습니다` 안내와 만료되는 웹 리포트 링크만 발송한다.
 
-## ⚠️ 레포와 DB가 어긋나 있음 (2026-09-12 확인)
+## 마이그레이션 관리 규칙
 
-`moasem` 스키마에 테이블 29개가 있는데, 이 레포의 `supabase/migrations/` 에는
-그중 16개분(0001~0007)만 있다. 나머지 13개는 **레포를 거치지 않고 DB에 직접 적용**됐다.
+`moasem` 스키마 테이블 29개는 모두 `supabase/migrations/` 에 파일이 있다 (0001~0008).
 
-DB에만 적용되어 있고 이 레포에 파일이 없는 마이그레이션 (Supabase 적용 이력 기준):
+`0008_restore_db_only_tables_baseline.sql` 은 특수한 파일이다. 2026-09-05~06 사이
+아래 9건이 이 레포를 거치지 않고 DB 에 직접 적용되어 레포에 파일이 없었는데,
+2026-09-12 에 DB 실제 구조를 조회해 13개 테이블을 하나로 재구성한 것이다.
 
-| 적용 시각 | 이름 |
-|---|---|
-| 2026-09-05 09:55 | `moasem_staff_accounts` |
-| 2026-09-05 10:30 | `moasem_report_resources` |
-| 2026-09-05 11:19 | `moasem_report_alimtalk` |
-| 2026-09-05 11:56 | `moasem_guardian_consent` |
-| 2026-09-05 12:18 | `moasem_consent_ui_english` |
-| 2026-09-05 22:07 | `moasem_student_progress` |
-| 2026-09-05 23:26 | `moasem_free_zoom_link` |
-| 2026-09-06 00:16 | `moasem_learning_operations` |
-| 2026-09-06 02:05 | `moasem_bulk_homework` |
+`moasem_staff_accounts`, `moasem_report_resources`, `moasem_report_alimtalk`,
+`moasem_guardian_consent`, `moasem_consent_ui_english`, `moasem_student_progress`,
+`moasem_free_zoom_link`, `moasem_learning_operations`, `moasem_bulk_homework`
 
-**작업 전 반드시 DB 실제 상태를 조회할 것.** 이 레포의 마이그레이션 파일만 믿으면 안 된다.
-새 작업은 파일과 DB를 함께 맞추고, 위 9건도 언젠가 파일로 복원해 두어야 한다.
+원본 SQL 이 아니라 재구성이므로 단계별 이력은 남아 있지 않다.
+
+**앞으로 지킬 것**
+- DB 에 직접 적용하지 않는다. 반드시 `supabase/migrations/` 에 파일을 함께 추가한다.
+- 작업 시작 전 DB 실제 상태를 조회해 레포와 맞는지 확인한다.
+- 파일은 이미 적용된 DB 에 재실행해도 안전하도록 `if not exists` 로 쓴다.
 
 ## moasem 스키마 테이블 (29개, 2026-09-12)
 
@@ -106,3 +103,4 @@ DB에만 적용되어 있고 이 레포에 파일이 없는 마이그레이션 (
 - 2026-09-05: 동의·과제제출·진단·성과보고서 테이블 4개와 계정 연결 칸 3개(`instructors.user_id`, `institutions.manager_user_id`, `programs.join_code`) 추가. 비공개 버킷 `moasem-submissions` 생성.
 - 2026-09-12: `public` 스키마 RLS 미적용 테이블 29개 점검 보고서(`SECURITY_RLS_REPORT.md`) 작성. 설정은 변경하지 않았다. `users`(비밀번호 해시·TOTP 비밀키), `sessions`(세션 토큰)이 anon 키로 읽고 쓸 수 있는 상태로 확인됐다.
 - 2026-09-12: 레포와 DB 불일치 확인. `moasem` 테이블이 29개인데 레포에는 16개분만 있다. 위 경고 절 참조.
+- 2026-09-12: DB 에만 있던 테이블 13개를 `0008_restore_db_only_tables_baseline.sql` 로 복원해 레포와 DB 를 맞췄다. 적용해도 기존 DB 는 변하지 않음을 확인했다 (표 29개·데이터·RLS 전부 유지).
