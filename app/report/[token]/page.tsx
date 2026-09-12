@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 type Report={language:string;headline:string|null;action_line:string|null;expires_at:string;student:{id:string;name:string;grade:number}|null;learning_log:{lesson_date:string;solved_count:number;wrong_count:number;wrong_type_summary:string|null;weekly_assignment:string|null;video_url:string|null}|null}
 
@@ -16,15 +17,16 @@ function SectionTitle({primary,korean,language}:{primary:string;korean:string;la
   return <h2 style={{fontSize:18,marginBottom:12}}>{primary}{language!=='ko'&&<small style={{display:'block',fontSize:12,fontWeight:500,color:'#9ca3af',marginTop:4}}>{korean}</small>}</h2>
 }
 
-export default function ReportPage({params}:{params:{token:string}}){
+export default function ReportPage(){
+  const {token}=useParams<{token:string}>()
   const [report,setReport]=useState<Report|null>(null)
   const [error,setError]=useState('')
 
   useEffect(()=>{
-    fetch(`/api/report/${params.token}`,{cache:'no-store'})
+    fetch(`/api/report/${token}`,{cache:'no-store'})
       .then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setReport(d.report)})
       .catch(e=>setError(e.message||'불러오기 실패'))
-  },[params.token])
+  },[token])
 
   if(error)return <main style={{padding:28,fontFamily:'Arial, Apple SD Gothic Neo, sans-serif'}}>{error}</main>
   if(!report)return <main style={{padding:28,fontFamily:'Arial, Apple SD Gothic Neo, sans-serif'}}>불러오는 중...</main>

@@ -9,13 +9,14 @@ const privateHeaders = {
   'X-Robots-Tag': 'noindex, nofollow, noarchive',
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
+    const { token } = await params
     const supabase = getSupabaseAdmin()
     const { data: report, error } = await supabase
       .from('guardian_reports')
       .select('language,headline,action_line,expires_at,student:students(id,name,grade),learning_log:learning_logs(lesson_date,solved_count,wrong_count,wrong_type_summary,weekly_assignment,video_url)')
-      .eq('token', params.token)
+      .eq('token', token)
       .single()
 
     if (error || !report) {

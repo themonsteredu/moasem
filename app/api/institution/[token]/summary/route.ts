@@ -9,13 +9,14 @@ const privateHeaders = {
   'X-Robots-Tag': 'noindex, nofollow, noarchive',
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
+    const { token } = await params
     const supabase = getSupabaseAdmin()
     const { data: institution, error: institutionError } = await supabase
       .from('institutions')
       .select('id,name,logo_url,manager_name')
-      .eq('portal_token', params.token)
+      .eq('portal_token', token)
       .single()
 
     if (institutionError || !institution) {

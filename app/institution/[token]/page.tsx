@@ -1,20 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 type Institution={id:string;name:string;logo_url:string|null;manager_name:string|null}
 type Program={id:string;name:string;starts_on:string;ends_on:string;status:string}
 type Student={id:string;name:string;grade:number;program_id:string;student_number:string|null}
 type Attendance={student_id:string;program_id:string;session_date:string;session_type:string;status:string}
 
-export default function InstitutionPage({params}:{params:{token:string}}){
+export default function InstitutionPage(){
+  const {token}=useParams<{token:string}>()
   const [institution,setInstitution]=useState<Institution|null>(null)
   const [programs,setPrograms]=useState<Program[]>([])
   const [students,setStudents]=useState<Student[]>([])
   const [attendance,setAttendance]=useState<Attendance[]>([])
   const [error,setError]=useState('')
 
-  useEffect(()=>{fetch(`/api/institution/${params.token}/summary`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setInstitution(d.institution);setPrograms(d.programs??[]);setStudents(d.students??[]);setAttendance(d.attendance??[])}).catch(e=>setError(e.message||'불러오기 실패'))},[params.token])
+  useEffect(()=>{fetch(`/api/institution/${token}/summary`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setInstitution(d.institution);setPrograms(d.programs??[]);setStudents(d.students??[]);setAttendance(d.attendance??[])}).catch(e=>setError(e.message||'불러오기 실패'))},[token])
 
   const attendanceMap=useMemo(()=>{
     const m=new Map<string,Attendance[]>();attendance.forEach(a=>{const arr=m.get(a.student_id)??[];arr.push(a);m.set(a.student_id,arr)});return m
