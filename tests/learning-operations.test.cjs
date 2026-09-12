@@ -1,0 +1,15 @@
+require('./register.cjs')
+const {test}=require('node:test'),assert=require('node:assert/strict')
+const {performance,weekBounds}=require('../lib/performance.ts')
+const {reportLines,reportDocx}=require('../lib/report-docx.ts')
+const {dateInput,uuidInput}=require('../lib/learning-operations.ts')
+const p={starts_on:'2026-07-01',ends_on:'2026-09-30',name:'Test',week_count:12}, students=[{id:'a',name:'실명검사',grade:3},{id:'b',name:'두번째',grade:4}]
+test('Metrics use due tasks, distinct attendance modes, paired pupils and exclude moved students',()=>{
+ const r=performance(p,students,[{student_id:'a',session_date:'2026-08-01',session_type:'in_person',status:'present'},{student_id:'a',session_date:'2026-08-01',session_type:'zoom',status:'absent'}],[{student_id:'a',due_on:'2026-08-01',status:'submitted'},{student_id:'a',due_on:'2026-09-30',status:'assigned'},{student_id:'moved',due_on:'2026-08-01',status:'assigned'}],[],[{student_id:'a',kind:'pre',score:10,taken_on:'2026-07-01'},{student_id:'a',kind:'post',score:15,taken_on:'2026-08-01'},{student_id:'b',kind:'pre',score:0,taken_on:'2026-07-01'}],{max_score:20},[],'2026-09-06')
+ assert.equal(r.in_person,'100%');assert.equal(r.zoom,'0%');assert.equal(r.submission,'100%');assert.equal(r.homework_count,1);assert.equal(r.pre,50);assert.equal(r.post,75);assert.equal(r.paired_count,1)
+ assert.equal(reportLines(r,true).join('\n').includes('실명검사'),false);assert.equal(reportLines(r,false).join('\n').includes('실명검사'),true)
+})
+test('No records remain missing rather than zero achievement; weeks start Monday',()=>{const r=performance(p,students,[],[],[],[],null,[],'2026-09-06');assert.equal(r.pre,null);assert.equal(r.submission,'기록 없음');assert.deepEqual(weekBounds('2026-09-06'),{start:'2026-08-31',end:'2026-09-06'})})
+test('Wrong types deduplicate within a lesson and video completion is self-reported',()=>{const log={student_id:'a',lesson_date:'2026-07-02',resource_snapshot:{wrong_types:[{id:'t',name:'분수'},{id:'t',name:'분수'}],videos:[{url:'https://example.test/v',title:'v'}]}};const r=performance(p,students,[],[],[log],[],null,[{student_id:'a',video_url:'https://example.test/v',opened_at:'2026-07-03T00:00:00Z',confirmed_at:null}],'2026-09-06');assert.equal(r.initial[0].count,1);assert.equal(r.video_open,'100%');assert.equal(r.video_confirmed,'0%')})
+test('DOCX output has ZIP signature and escapes XML',()=>{const bytes=reportDocx(['모아셈','A & B <C>']);assert.equal(new DataView(bytes.buffer).getUint32(0,true),0x04034b50);assert.match(new TextDecoder().decode(bytes),/A &amp; B &lt;C&gt;/)})
+test('Reject invalid dates and identifiers before database calls',()=>{assert.throws(()=>dateInput('2026-02-30'));assert.throws(()=>uuidInput('bad'));assert.equal(dateInput('2026-09-06'),'2026-09-06')})

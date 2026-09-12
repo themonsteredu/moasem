@@ -1,42 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, assertStaff, assertProgramAccess, privateHeaders, AccessError, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+
+import { zoomJoinUrl } from '@/lib/zoom-link'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    const staff = await assertStaff(request)
     const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
+    let query = supabase
       .from('programs')
-      .select('id,name,starts_on,ends_on,week_count,status,in_person_weekdays,zoom_weekdays,zoom_meeting_number,institution:institutions(id,name),instructor:instructors(id,name)')
+      .select('id,name,starts_on,ends_on,week_count,status,in_person_weekdays,zoom_weekdays,zoom_meeting_number,zoom_join_url,institution:institutions(id,name),instructor:instructors(id,name)')
       .order('created_at', { ascending: false })
+    if (staff.role === 'instructor') query = query.eq('instructor_id', staff.instructor_id!)
+    const { data, error } = await query
 
     if (error) throw error
     return NextResponse.json({ items: data ?? [] })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '프로그램 목록을 불러오지 못했습니다.' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const supabase = getSupabaseAdmin()
 
-    let instructorId: string | null = null
-    const instructorName = String(body.instructor_name ?? '').trim()
-    if (instructorName) {
-      const { data: instructor, error: instructorError } = await supabase
-        .from('instructors')
-        .insert({ name: instructorName, phone: body.instructor_phone || null })
-        .select('id')
-        .single()
-      if (instructorError) throw instructorError
-      instructorId = instructor.id
+    const instructorId = body.instructor_id || null
+    if (instructorId) {
+      const { data: instructor, error } = await supabase.from('staff_accounts')
+        .select('id').eq('instructor_id', instructorId).eq('role', 'instructor').eq('active', true).maybeSingle()
+      if (error) throw error
+      if (!instructor) throw new AccessError(400, '사용 중인 강사를 선택하세요.')
     }
 
     const { data, error } = await supabase
@@ -59,9 +60,29 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ item: data }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401 })
-    }
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     return NextResponse.json({ error: '프로그램을 만들지 못했습니다.' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const staff = await assertStaff(request)
+    const body = await request.json()
+    const programId = String(body.program_id ?? '')
+    await assertProgramAccess(staff, programId)
+    const link = zoomJoinUrl(body.zoom_join_url)
+    let query = getSupabaseAdmin().from('programs').update({ zoom_join_url: link }).eq('id', programId)
+    if (staff.role === 'instructor') query = query.eq('instructor_id', staff.instructor_id!)
+    const { data, error } = await query.select('id,zoom_join_url').maybeSingle()
+    if (error) throw error
+    if (!data) throw new AccessError(403, '담당 프로그램만 사용할 수 있습니다.')
+    return NextResponse.json({ item: data }, { headers: privateHeaders })
+  } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
+    if (error instanceof Error && error.message === 'INVALID_ZOOM_LINK') return NextResponse.json({ error: 'Zoom의 참가자 초대 링크(https://…zoom.us/j/회의번호)를 붙여 넣어 주세요. 호스트 시작 링크는 사용할 수 없습니다.' }, { status: 400 })
+    return NextResponse.json({ error: '줌 링크를 저장하지 못했습니다.' }, { status: 500 })
   }
 }

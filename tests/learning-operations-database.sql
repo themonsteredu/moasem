@@ -1,0 +1,32 @@
+begin;
+do $$ declare inst uuid; teacher uuid; program uuid; pupil uuid; staff uuid; outsider uuid; hw uuid:=gen_random_uuid(); photo uuid:=gen_random_uuid(); payload jsonb; denied boolean;
+begin
+ insert into moasem.institutions(name) values('__learning_test__') returning id into inst;
+ insert into moasem.instructors(name) values('__learning_test__') returning id into teacher;
+ insert into moasem.programs(institution_id,instructor_id,name,starts_on,ends_on,week_count) values(inst,teacher,'Test','2026-01-01','2026-12-31',12) returning id into program;
+ staff:=moasem.save_staff_instructor(null,teacher,null,'Test','test-'||gen_random_uuid()||'@example.invalid','',array[program],true);
+ insert into moasem.instructors(name) values('Other') returning id into outsider;
+ outsider:=moasem.save_staff_instructor(null,outsider,null,'Other','test-'||gen_random_uuid()||'@example.invalid','',array[]::uuid[],true);
+ insert into moasem.students(program_id,name,grade) values(program,'Test pupil',3) returning id into pupil;
+ payload:=jsonb_build_object('id',hw,'title','Test homework','details','p20','assigned_on','2026-09-01','due_on','2026-09-06');
+ set local role service_role;
+ perform moasem.learning_operation(staff,pupil,'assign',payload);
+ perform moasem.learning_operation(staff,pupil,'assign',payload);
+ if (select count(*) from moasem.homework where id=hw)<>1 then raise exception 'Duplicate homework'; end if;
+ denied:=false;begin perform moasem.learning_operation(outsider,pupil,'assign',payload);exception when others then if sqlerrm<>'ACCESS_DENIED' then raise;end if;denied:=true;end;if not denied then raise exception 'Scope bypass';end if;
+ perform moasem.learning_operation(staff,pupil,'link','{"hash":"valid"}');
+ perform moasem.learning_operation(null,pupil,'photo',jsonb_build_object('id',photo,'homework_id',hw,'path','test/photo'),'valid');
+ perform moasem.learning_operation(null,pupil,'photo',jsonb_build_object('id',photo,'homework_id',hw,'path','test/photo'),'valid');
+ if (select count(*) from moasem.homework_photos where homework_id=hw)<>1 or (select status from moasem.homework where id=hw)<>'submitted' then raise exception 'Submission failed';end if;
+ perform moasem.learning_operation(staff,pupil,'revoke','{}');
+ denied:=false;begin perform moasem.learning_operation(null,pupil,'photo',jsonb_build_object('id',photo,'homework_id',hw,'path','test/photo'),'valid');exception when others then if sqlerrm<>'ACCESS_DENIED' then raise;end if;denied:=true;end;if not denied then raise exception 'Revoked link bypass';end if;
+ perform moasem.save_diagnostic_paper(staff,program,'Test paper','https://example.test/paper',20);
+ perform moasem.learning_operation(staff,pupil,'score','{"kind":"pre","score":10,"taken_on":"2026-09-01"}');
+ denied:=false;begin perform moasem.learning_operation(staff,pupil,'score','{"kind":"post","score":21,"taken_on":"2026-09-06"}');exception when others then if sqlerrm<>'INVALID_SCORE' then raise;end if;denied:=true;end;if not denied then raise exception 'Max score bypass';end if;
+ denied:=false;begin perform moasem.save_diagnostic_paper(staff,program,'Other','https://example.test/other',100);exception when others then if sqlerrm<>'PAPER_LOCKED' then raise;end if;denied:=true;end;if not denied then raise exception 'Paper changed';end if;
+ reset role;
+ if has_table_privilege('anon','moasem.homework','SELECT') or has_function_privilege('authenticated','moasem.learning_operation(uuid,uuid,text,jsonb,text)','EXECUTE') then raise exception 'Public access';end if;
+end $$;
+
+rollback;
+select 'learning access tests passed (rolled back)' as result;

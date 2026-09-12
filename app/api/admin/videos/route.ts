@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { assertAdmin } from '@/lib/admin-auth'
+import { assertAdmin, authErrorResponse } from '@/lib/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { isSupportedLanguage } from '@/lib/languages'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -9,7 +10,7 @@ const privateHeaders = { 'Cache-Control': 'private, no-store, max-age=0' }
 
 export async function GET(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const supabase = getSupabaseAdmin()
     const { data, error } = await supabase
       .from('supplement_videos')
@@ -19,6 +20,8 @@ export async function GET(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ items: data ?? [] }, { headers: privateHeaders })
   } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401, headers: privateHeaders })
     }
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    assertAdmin(request)
+    await assertAdmin(request)
     const body = await request.json()
     const title = String(body.title ?? '').trim()
     const url = String(body.url ?? '').trim()
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
       title,
       url: parsedUrl.toString(),
       duration_seconds: body.duration_seconds ? Number(body.duration_seconds) : null,
-      language: ['ko', 'vi', 'zh-CN'].includes(body.language) ? body.language : 'ko',
+      language: isSupportedLanguage(body.language) ? body.language : 'ko',
       provider: ['youtube', 'vimeo', 'direct', 'other'].includes(body.provider) ? body.provider : 'youtube',
       visibility: ['public', 'unlisted', 'private'].includes(body.visibility) ? body.visibility : 'unlisted',
       active: body.active !== false,
@@ -61,6 +64,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ item }, { status: body.id ? 200 : 201, headers: privateHeaders })
   } catch (error) {
+    const denied = authErrorResponse(error)
+    if (denied) return denied
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '관리자 인증이 필요합니다.' }, { status: 401, headers: privateHeaders })
     }
