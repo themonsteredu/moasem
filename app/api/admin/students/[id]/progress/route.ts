@@ -4,7 +4,7 @@ import { consentId, readConsentBody } from '@/lib/guardian-consent'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { progressInput } from '@/lib/student-progress'
 export const dynamic = 'force-dynamic'
-type Context = { params: { id: string } }
+type Context = { params: Promise<{ id: string }> }
 function failure(error: unknown) {
   const auth = authErrorResponse(error)
   if (auth) return auth
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: Context) {
     const staff = await assertStaff(request)
     const offset = Number(request.nextUrl.searchParams.get('offset') || 0)
     if (!Number.isInteger(offset) || offset < 0 || offset > 100000) throw new AccessError(400, '기록 페이지를 확인해 주세요.')
-    const { data, error } = await getSupabaseAdmin().rpc('read_student_progress', { p_staff_id: staff.id, p_student_id: consentId(params.id), p_offset: offset })
+    const { data, error } = await getSupabaseAdmin().rpc('read_student_progress', { p_staff_id: staff.id, p_student_id: consentId((await params).id), p_offset: offset })
     if (error) throw error
     return NextResponse.json({ ...data, entries: data.entries.slice(0, 20), has_more: data.entries.length > 20 }, { headers: privateHeaders })
   } catch (error) { return failure(error) }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: Context) {
   try {
     const staff = await assertStaff(request)
     const body = await readConsentBody(request)
-    const { data, error } = await getSupabaseAdmin().rpc('save_student_progress', { p_staff_id: staff.id, p_student_id: consentId(params.id), p_entry_id: consentId(body.entry_id), p_input: progressInput(body) })
+    const { data, error } = await getSupabaseAdmin().rpc('save_student_progress', { p_staff_id: staff.id, p_student_id: consentId((await params).id), p_entry_id: consentId(body.entry_id), p_input: progressInput(body) })
     if (error) throw error
     return NextResponse.json({ id: data }, { status: 201, headers: privateHeaders })
   } catch (error) { return failure(error) }

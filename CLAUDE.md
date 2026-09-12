@@ -6,11 +6,11 @@
 - GitHub 저장소: themonsteredu/moasem
 - Supabase는 aiapp 프로젝트를 사용한다. 프로젝트 ID는 `vypnobpmyadtcvxhtagn` (ap-northeast-2). 다른 Supabase 프로젝트에는 마이그레이션을 적용하지 않는다.
 - DB는 aiapp 프로젝트의 `moasem` 스키마를 사용한다. 모든 모아셈 테이블은 `moasem` 스키마 안에 두고 이름에 접두어를 붙이지 않는다. (예: `moasem.students`)
-- `public` 스키마에는 모아킷 등 다른 앱의 테이블 116개가 있다. 절대 수정·삭제하지 않는다. `public` 스키마의 RLS 설정도 건드리지 않는다.
+- `public` 스키마에는 모아킷 등 다른 앱의 테이블 126개가 있다 (2026-09-12 기준, 계속 늘어난다). 절대 수정·삭제하지 않는다. `public` 스키마의 RLS 설정도 건드리지 않는다.
 - 앱 접속은 `lib/supabase-admin.ts` 한 곳에서 `db: { schema: 'moasem' }` 로 스키마를 고정한다. 코드에서는 `.from('students')` 처럼 접두어 없이 호출한다.
 - Supabase 대시보드 Project Settings → API → Exposed schemas 는
   `public, graphql_public, moalab, ai_upcycling, moasem` 이어야 한다.
-  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(116표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(12표).
+  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(126표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(25표).
   이 목록은 반드시 **추가만** 한다. 기존 항목을 하나라도 빼면 해당 앱이 즉시 멈춘다.
 - 관리자·강사 인증은 Supabase Auth와 `moasem.staff_accounts`의 현재 권한을 함께 확인한다. 사용자 메타데이터의 역할은 신뢰하지 않는다. 기존 관리 키는 첫 관리자 등록에만 사용한다.
 - 기관·프로그램의 강사 권한은 `staff_accounts.instructor_id → programs.instructor_id`로 연결한다. 기존 Auth 계정 비밀번호 변경·전체 로그인 차단은 다른 앱에 영향을 줄 수 있으므로 하지 않는다.
@@ -26,6 +26,69 @@
 - 보호자 기본 지원 언어는 한국어·영어·베트남어·중국어 간체다. 국적만으로 안내 언어를 추정하지 않고 보호자가 편하게 읽는 언어로 등록한다.
 - 보호자 알림톡은 MOAKIT 카카오톡 채널을 Solapi로 연동한다.
 - 알림톡 본문에는 학습 상세를 넣지 않고 `리포트가 도착했습니다` 안내와 만료되는 웹 리포트 링크만 발송한다.
+
+## 마이그레이션 관리 규칙
+
+`moasem` 스키마 테이블 25개는 모두 `supabase/migrations/` 에 파일이 있다 (0001~0009).
+
+`0008_restore_db_only_tables_baseline.sql` 은 특수한 파일이다. 2026-09-05~06 사이
+아래 9건이 이 레포를 거치지 않고 DB 에 직접 적용되어 레포에 파일이 없었는데,
+2026-09-12 에 DB 실제 구조를 조회해 13개 테이블을 하나로 재구성한 것이다.
+
+`moasem_staff_accounts`, `moasem_report_resources`, `moasem_report_alimtalk`,
+`moasem_guardian_consent`, `moasem_consent_ui_english`, `moasem_student_progress`,
+`moasem_free_zoom_link`, `moasem_learning_operations`, `moasem_bulk_homework`
+
+원본 SQL 이 아니라 재구성이므로 단계별 이력은 남아 있지 않다.
+
+**앞으로 지킬 것**
+- DB 에 직접 적용하지 않는다. 반드시 `supabase/migrations/` 에 파일을 함께 추가한다.
+- 작업 시작 전 DB 실제 상태를 조회해 레포와 맞는지 확인한다.
+- 파일은 이미 적용된 DB 에 재실행해도 안전하도록 `if not exists` 로 쓴다.
+
+## moasem 스키마 테이블 (25개, 2026-09-12)
+
+### 기준 정보
+- `institutions` — 기관. 담당자 정보, 읽기전용 포털 토큰(`portal_token`), 담당자 계정(`manager_user_id`)
+- `instructors` — 강사. 로그인 계정 연결(`user_id`)
+- `programs` — 기관별 위탁 프로그램. 기간·주차수·대면/Zoom 요일·학생 입장코드(`join_code`)
+- `guardians` — 보호자. 연락처와 기본 언어(ko/vi/zh-CN)
+- `students` — 학생. 프로그램·보호자 연결, 학년
+- `staff_accounts` — **관리자/강사 권한.** `auth_user_id` 로 Supabase Auth 연결. auth 쪽 role은 신뢰하지 않고 이 표를 기준으로 삼는다
+
+### 출결·학습
+- `attendance` — 대면/Zoom 출석. 학생·날짜·유형 조합이 유일
+- `learning_logs` — 강사 수동 입력 학습 결과 (푼 문제수·오답수·주간과제·영상)
+- `student_progress_entries` — 상세 진도 기록 (교재·단원·쪽수·배운 것·어려운 점·다음 과제)
+- `student_video_checks` — 보충영상 열람·확인 기록
+- `student_portal_links` — 학생 포털 접근 토큰(해시) 및 만료
+
+### 과제
+- `homework` — 과제 배정과 상태 (배정일·기한·제출·확인)
+- `homework_photos` — 과제 사진. 실제 파일은 Storage
+- `homework_batches` — 과제 일괄 배정 이력
+
+### 진단
+- `diagnostic_papers` — 프로그램별 사전/사후 진단 문제지 (URL·만점)
+- `diagnostic_scores` — 학생별 진단 점수 (사전/사후)
+
+### 오답·보충영상
+- `wrong_types` — 오답 유형 기준정보 (학년·학기·영역·단원, 3개 언어 설명)
+- `supplement_videos` — 보충영상 보관함
+- `wrong_type_videos` — 오답 유형 ↔ 보충영상 연결 (유형별 대표영상 1개)
+- `learning_log_wrong_types` — 학습기록 ↔ 오답 유형 연결
+
+### 보호자 리포트·알림
+- `guardian_reports` — 로그인 없는 링크형 학습 리포트. 토큰과 만료 시각
+- `report_notification_attempts` — 알림톡 발송 시도와 결과. 접수와 도착을 구분하고, 결과 불명 시 자동 재발송하지 않는다
+
+### 법정대리인 동의
+- `consent_documents` — 동의 문서 원문과 번역
+- `guardian_consent_requests` — 동의 요청. 토큰 해시·문서 스냅샷·만료·철회
+- `guardian_consent_records` — 동의 결과. 서명자명·언어·법정대리인 여부. **본인인증이나 자격증명을 의미하지 않는다**
+
+### Storage
+- `moasem-submissions` — 비공개 버킷. 10MB, 사진·PDF만. 서버가 발급한 한시적 링크로만 열린다
 
 ## 진행 기록
 - 2026-09-03: 신규 독립 서비스 구조 확정. 기존 학원 시스템과 분리, `moasem_` 전용 데이터 구조 설계 시작.
@@ -59,3 +122,9 @@
 - 2026-09-06: 과제 관리에 프로그램별 미제출·기한 초과·강사 확인 대기/완료, 30건 페이지, 선택 과제의 5분 비공개 사진 조회와 학생 개인기록 연결 추가. 담당·현재 소속·활성 상태 및 늦은 응답 차단을 검증하며 자동채점·자동 발송·새 DB 변경은 하지 않음. 확인 방법과 실제 기기 시험 범위는 docs/homework-review.md에 기록.
 - 2026-09-06: 배포 전 검토 반영으로 학생 기록이 늦게 로드되어도 과제 바로가기 위치로 이동하도록 수정. 일반 방문·과제 새로고침 시 불필요한 이동이 없는지도 검증.
 - 2026-09-06: 관리자·담당 강사용 학생×주차 진도표와 선택 주의 진도·과제·대면/줌 출석 상세 추가. 날짜 기준 4주·학생 25명 페이지, 기간/등록 주차 불일치 안내, 현재 소속·담당 권한과 늦은 응답 차단을 검증. DB 변경 없이 기존 기록을 집계하며 사용법·검증 범위는 docs/weekly-progress.md에 기록.
+- 2026-09-05: 동의·과제제출·진단·성과보고서 테이블 4개와 계정 연결 칸 3개(`instructors.user_id`, `institutions.manager_user_id`, `programs.join_code`) 추가. 비공개 버킷 `moasem-submissions` 생성.
+- 2026-09-12: `public` 스키마 RLS 미적용 테이블 29개 점검 보고서(`SECURITY_RLS_REPORT.md`) 작성. 설정은 변경하지 않았다. `users`(비밀번호 해시·TOTP 비밀키), `sessions`(세션 토큰)이 anon 키로 읽고 쓸 수 있는 상태로 확인됐다.
+- 2026-09-12: 레포와 DB 불일치 확인. `moasem` 테이블이 29개인데 레포에는 16개분만 있다. 「마이그레이션 관리 규칙」 절 참조.
+- 2026-09-12: DB 에만 있던 테이블 13개를 `0008_restore_db_only_tables_baseline.sql` 로 복원해 레포와 DB 를 맞췄다. 적용해도 기존 DB 는 변하지 않음을 확인했다 (표 29개·데이터·RLS 전부 유지).
+- 2026-09-12: Next.js 14.2.15 -> 15.5.25, React 18 -> 19.3.0 업그레이드. 인증 없는 원격 코드 실행 2건(critical) 등 취약점 24건을 해소했다. 14 계열에는 패치가 없어 주요 버전을 올려야 했다. Next 15 변경에 맞춰 동적 경로 4곳을 수정했다 (라우트 핸들러는 `await params`, 화면은 `useParams()`). postcss 는 overrides 로 8.5.28 고정. `npm audit` 취약점 0건, 빌드 통과.
+- 2026-09-12: 0007 로 만들었던 `consents`·`submissions`·`assessments`·`reports` 4개를 삭제했다 (`0009`). 각각 `guardian_consent_*`, `homework*`, `diagnostic_*` 로 대체되어 쓰이지 않았고 데이터 0건·참조 0건을 확인한 뒤 cascade 없이 지웠다. 0007 에서 함께 추가한 칸 3개(`instructors.user_id`, `institutions.manager_user_id`, `programs.join_code`)는 아직 쓰이지 않지만 그대로 두었다.

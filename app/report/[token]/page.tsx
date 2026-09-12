@@ -2,6 +2,7 @@
 
 import { Brand } from '../../components/brand'
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { languageLocale } from '../../../lib/languages'
 import { reportResources, typeDescription, ReportResources } from '../../../lib/report-resources'
 
@@ -20,14 +21,16 @@ function SectionTitle({primary,korean,language,number}:{primary:string;korean:st
   return <h2><span className="guardian-section-number" aria-hidden="true">{number}</span><span>{primary}{language!=='ko'&&<small className="guardian-korean" lang="ko">{korean}</small>}</span></h2>
 }
 
-export default function ReportPage({params}:{params:{token:string}}){
+export default function ReportPage(){
+  // 라우터 밖(단위 테스트)에서는 null 이 올 수 있다.
+  const token=useParams<{token:string}>()?.token??''
   const [report,setReport]=useState<Report|null>(null)
   const [error,setError]=useState('')
   useEffect(()=>{
     let active=true
-    fetch(`/api/report/${params.token}`,{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error);if(active)setReport(data.report)}).catch(error=>{if(active)setError(error.message||'불러오지 못했습니다.')})
+    fetch(`/api/report/${token}`,{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error);if(active)setReport(data.report)}).catch(error=>{if(active)setError(error.message||'불러오지 못했습니다.')})
     return()=>{active=false}
-  },[params.token])
+  },[token])
   if(error)return <main className="public-state"><span className="eyebrow">MOASEM · 보호자 리포트</span><h1>리포트를 확인할 수 없습니다</h1><p>{error}</p><p>선생님께 리포트 링크를 확인해 주세요.</p></main>
   if(!report)return <main className="public-state" role="status"><span className="eyebrow">MOASEM</span><h1>리포트를 불러오고 있어요</h1><p>잠시만 기다려 주세요.</p></main>
   const language=report.language as keyof typeof labels

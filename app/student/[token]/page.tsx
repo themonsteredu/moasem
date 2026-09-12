@@ -1,10 +1,13 @@
 'use client'
 import { Brand } from '../../components/brand'
 import {useEffect,useRef,useState} from 'react'
+import {useParams} from 'next/navigation'
 import {Icon} from '@/app/components/workspace'
-export default function StudentPage({params}:{params:{token:string}}){
+export default function StudentPage(){
+ // 라우터 밖(단위 테스트)에서는 null 이 올 수 있다.
+ const token=useParams<{token:string}>()?.token??''
  const [data,setData]=useState<any>(null),[view,setView]=useState('home'),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[chosen,setChosen]=useState(''),[file,setFile]=useState<Blob|null>(null);const id=useRef('')
- const api=`/api/student/${params.token}`
+ const api=`/api/student/${token}`
  useEffect(()=>{let alive=true;fetch(api,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error);if(alive)setData(d)}).catch(e=>{if(alive)setMessage(e.message)});return()=>{alive=false}},[api])
  async function reload(){const r=await fetch(api,{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error);setData(d)}
  async function choosePhoto(f:File|undefined){setFile(null);id.current='';if(!f)return;setBusy(true);try{const bitmap=await createImageBitmap(f),ratio=Math.min(1,1800/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*ratio);canvas.height=Math.round(bitmap.height*ratio);canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));if(!blob||blob.size>3145728)throw Error('사진이 너무 커요. 조금 작게 찍어 주세요.');setFile(blob);id.current=crypto.randomUUID();setMessage('사진을 골랐어요. 올리기를 눌러 주세요.')}catch{setMessage('이 사진을 읽지 못했어요. JPG 또는 PNG 사진을 골라 주세요.')}finally{setBusy(false)}}

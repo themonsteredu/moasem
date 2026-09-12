@@ -6,9 +6,9 @@ import { type WeeklyStudent, type ProgressRecord, type HomeworkRecord, type Atte
 import { positiveNumber, publicWeeklyStudent, weeklyProgram, weeklyStudents, weeklyRecords, weeklyPeriod } from '@/lib/weekly-progress-data'
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest, { params }: { params: { studentId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
   try {
-    const staff = await assertStaff(req), studentId = uuidInput(params.studentId), programId = uuidInput(req.nextUrl.searchParams.get('program_id'))
+    const staff = await assertStaff(req), studentId = uuidInput((await params).studentId), programId = uuidInput(req.nextUrl.searchParams.get('program_id'))
     const number = positiveNumber(req.nextUrl.searchParams.get('week'))
     if (!number) throw new AccessError(400, '확인할 주차를 선택해 주세요.')
     const program = await weeklyProgram(staff, programId), week = weeklyPeriod(program, koreaToday(), number)

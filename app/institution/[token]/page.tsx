@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { EmptyState } from '../../components/workspace'
 
 type Institution={id:string;name:string;logo_url:string|null;manager_name:string|null}
@@ -10,7 +11,9 @@ type Student={id:string;name:string;grade:number;program_id:string;student_numbe
 type Attendance={student_id:string;program_id:string;session_date:string;session_type:string;status:string}
 const statusLabel:Record<string,string>={active:'진행 중',planned:'예정',completed:'종료',draft:'준비 중',ended:'종료',paused:'일시 중지'}
 
-export default function InstitutionPage({params}:{params:{token:string}}){
+export default function InstitutionPage(){
+  // 라우터 밖(단위 테스트)에서는 null 이 올 수 있다.
+  const token=useParams<{token:string}>()?.token??''
   const [institution,setInstitution]=useState<Institution|null>(null)
   const [programs,setPrograms]=useState<Program[]>([])
   const [students,setStudents]=useState<Student[]>([])
@@ -18,7 +21,7 @@ export default function InstitutionPage({params}:{params:{token:string}}){
   const [learning,setLearning]=useState<any[]>([])
   const [week,setWeek]=useState<any>(null)
   const [error,setError]=useState('')
-  useEffect(()=>{let active=true;fetch(`/api/institution/${params.token}/summary`,{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error);if(!active)return;setInstitution(data.institution);setPrograms(data.programs??[]);setStudents(data.students??[]);setAttendance(data.attendance??[]);setLearning(data.learning??[]);setWeek(data.week)}).catch(error=>{if(active)setError(error.message||'불러오지 못했습니다.')});return()=>{active=false}},[params.token])
+  useEffect(()=>{let active=true;fetch(`/api/institution/${token}/summary`,{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error);if(!active)return;setInstitution(data.institution);setPrograms(data.programs??[]);setStudents(data.students??[]);setAttendance(data.attendance??[]);setLearning(data.learning??[]);setWeek(data.week)}).catch(error=>{if(active)setError(error.message||'불러오지 못했습니다.')});return()=>{active=false}},[token])
   const attendanceMap=useMemo(()=>{const map=new Map<string,Attendance[]>();attendance.forEach(item=>{const rows=map.get(item.student_id)??[];rows.push(item);map.set(item.student_id,rows)});return map},[attendance])
   function rate(id:string,sessionType='in_person'){const rows=(attendanceMap.get(id)??[]).filter(item=>item.session_type===sessionType);if(!rows.length)return '기록 없음';return `${Math.round(rows.filter(item=>item.status==='present'||item.status==='late').length/rows.length*100)}%`}
   if(error)return <main className="public-state"><span className="eyebrow">MOASEM · 기관 담당자</span><h1>현황을 확인할 수 없습니다</h1><p>{error}</p><p>운영 담당자에게 조회 링크를 확인해 주세요.</p></main>

@@ -5,9 +5,9 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { publicReviewItem, reviewColumns, scopedHomework, type ReviewRow } from '@/lib/homework-review-data'
 
 export const dynamic = 'force-dynamic'
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const staff = await assertStaff(req), id = uuidInput(params.id), programId = uuidInput(req.nextUrl.searchParams.get('program_id'))
+    const staff = await assertStaff(req), id = uuidInput((await params).id), programId = uuidInput(req.nextUrl.searchParams.get('program_id'))
     await assertProgramAccess(staff, programId)
     const { data, error } = await scopedHomework(staff, programId, `${reviewColumns},photos:homework_photos(id,storage_path)`)
       .eq('id', id).returns<ReviewRow[]>().maybeSingle()

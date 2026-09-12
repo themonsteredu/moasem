@@ -43,7 +43,7 @@ test('Choosing two types with one video previews it once; unlinked types remain 
 })
 test('Guardian sees three sections, native description first and deduplicated video links', async () => {
   global.fetch = async () => ({ ok: true, json: async () => ({ report: { language: 'vi', expires_at: '2099-01-01', student: { name: '예시 학생', grade: 3 }, learning_log: { solved_count: 10, wrong_count: 2, video_url: video.url }, resources: { version: 1, wrong_types: [type], videos: [video, video] } } }) })
-  await act(async () => { mounted = create(React.createElement(GuardianPage, { params: { token: 'sample' } })) })
+  await act(async () => { mounted = create(React.createElement(GuardianPage)) })
   assert.equal(mounted.root.findAllByType('section').length, 3)
   const description = mounted.root.findByProps({ className: 'guardian-types' }).findByType('li').children
   assert.deepEqual(description[0].children, [type.description_vi])
