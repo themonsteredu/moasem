@@ -6,11 +6,11 @@
 - GitHub 저장소: themonsteredu/moasem
 - Supabase는 aiapp 프로젝트를 사용한다. 프로젝트 ID는 `vypnobpmyadtcvxhtagn` (ap-northeast-2). 다른 Supabase 프로젝트에는 마이그레이션을 적용하지 않는다.
 - DB는 aiapp 프로젝트의 `moasem` 스키마를 사용한다. 모든 모아셈 테이블은 `moasem` 스키마 안에 두고 이름에 접두어를 붙이지 않는다. (예: `moasem.students`)
-- `public` 스키마에는 모아킷 등 다른 앱의 테이블 116개가 있다. 절대 수정·삭제하지 않는다. `public` 스키마의 RLS 설정도 건드리지 않는다.
+- `public` 스키마에는 모아킷 등 다른 앱의 테이블 126개가 있다 (2026-09-12 기준, 계속 늘어난다). 절대 수정·삭제하지 않는다. `public` 스키마의 RLS 설정도 건드리지 않는다.
 - 앱 접속은 `lib/supabase-admin.ts` 한 곳에서 `db: { schema: 'moasem' }` 로 스키마를 고정한다. 코드에서는 `.from('students')` 처럼 접두어 없이 호출한다.
 - Supabase 대시보드 Project Settings → API → Exposed schemas 는
   `public, graphql_public, moalab, ai_upcycling, moasem` 이어야 한다.
-  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(116표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(29표).
+  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(126표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(25표).
   이 목록은 반드시 **추가만** 한다. 기존 항목을 하나라도 빼면 해당 앱이 즉시 멈춘다.
 - 기준 데이터 구조는 기관 → 프로그램 → 학생 → 보호자다.
 - 기능 구현 전 화면 구성을 먼저 설명하고 사용자 확인을 받는다.
@@ -25,7 +25,7 @@
 
 ## 마이그레이션 관리 규칙
 
-`moasem` 스키마 테이블 29개는 모두 `supabase/migrations/` 에 파일이 있다 (0001~0008).
+`moasem` 스키마 테이블 25개는 모두 `supabase/migrations/` 에 파일이 있다 (0001~0009).
 
 `0008_restore_db_only_tables_baseline.sql` 은 특수한 파일이다. 2026-09-05~06 사이
 아래 9건이 이 레포를 거치지 않고 DB 에 직접 적용되어 레포에 파일이 없었는데,
@@ -42,7 +42,7 @@
 - 작업 시작 전 DB 실제 상태를 조회해 레포와 맞는지 확인한다.
 - 파일은 이미 적용된 DB 에 재실행해도 안전하도록 `if not exists` 로 쓴다.
 
-## moasem 스키마 테이블 (29개, 2026-09-12)
+## moasem 스키마 테이블 (25개, 2026-09-12)
 
 ### 기준 정보
 - `institutions` — 기관. 담당자 정보, 읽기전용 포털 토큰(`portal_token`), 담당자 계정(`manager_user_id`)
@@ -83,12 +83,6 @@
 - `guardian_consent_requests` — 동의 요청. 토큰 해시·문서 스냅샷·만료·철회
 - `guardian_consent_records` — 동의 결과. 서명자명·언어·법정대리인 여부. **본인인증이나 자격증명을 의미하지 않는다**
 
-### 미사용 (0007 로 만들었으나 위 표들로 대체됨 — 정리 대상)
-- `consents` — `guardian_consent_*` 3개가 더 완전하다
-- `submissions` — `homework` + `homework_photos` 가 더 완전하다
-- `assessments` — `diagnostic_papers` + `diagnostic_scores` 로 대체
-- `reports` — 프로그램 단위 성과보고서. 아직 쓰는 화면이 없다
-
 ### Storage
 - `moasem-submissions` — 비공개 버킷. 10MB, 사진·PDF만. 서버가 발급한 한시적 링크로만 열린다
 
@@ -105,3 +99,4 @@
 - 2026-09-12: 레포와 DB 불일치 확인. `moasem` 테이블이 29개인데 레포에는 16개분만 있다. 위 경고 절 참조.
 - 2026-09-12: DB 에만 있던 테이블 13개를 `0008_restore_db_only_tables_baseline.sql` 로 복원해 레포와 DB 를 맞췄다. 적용해도 기존 DB 는 변하지 않음을 확인했다 (표 29개·데이터·RLS 전부 유지).
 - 2026-09-12: Next.js 14.2.15 -> 15.5.25, React 18 -> 19.3.0 업그레이드. 인증 없는 원격 코드 실행 2건(critical) 등 취약점 24건을 해소했다. 14 계열에는 패치가 없어 주요 버전을 올려야 했다. Next 15 변경에 맞춰 동적 경로 4곳을 수정했다 (라우트 핸들러는 `await params`, 화면은 `useParams()`). postcss 는 overrides 로 8.5.28 고정. `npm audit` 취약점 0건, 빌드 통과.
+- 2026-09-12: 0007 로 만들었던 `consents`·`submissions`·`assessments`·`reports` 4개를 삭제했다 (`0009`). 각각 `guardian_consent_*`, `homework*`, `diagnostic_*` 로 대체되어 쓰이지 않았고 데이터 0건·참조 0건을 확인한 뒤 cascade 없이 지웠다. 0007 에서 함께 추가한 칸 3개(`instructors.user_id`, `institutions.manager_user_id`, `programs.join_code`)는 아직 쓰이지 않지만 그대로 두었다.
