@@ -10,7 +10,7 @@
 - 앱 접속은 `lib/supabase-admin.ts` 한 곳에서 `db: { schema: 'moasem' }` 로 스키마를 고정한다. 코드에서는 `.from('students')` 처럼 접두어 없이 호출한다.
 - Supabase 대시보드 Project Settings → API → Exposed schemas 는
   `public, graphql_public, moalab, ai_upcycling, moasem` 이어야 한다.
-  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(116표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(12표).
+  aiapp 프로젝트는 이미 스키마를 나눠 쓰고 있다: `public`(116표), `moalab`(57표), `ai_upcycling`(14표), `moasem`(29표).
   이 목록은 반드시 **추가만** 한다. 기존 항목을 하나라도 빼면 해당 앱이 즉시 멈춘다.
 - 기준 데이터 구조는 기관 → 프로그램 → 학생 → 보호자다.
 - 기능 구현 전 화면 구성을 먼저 설명하고 사용자 확인을 받는다.
@@ -23,6 +23,78 @@
 - 보호자 알림톡은 MOAKIT 카카오톡 채널을 Solapi로 연동한다.
 - 알림톡 본문에는 학습 상세를 넣지 않고 `리포트가 도착했습니다` 안내와 만료되는 웹 리포트 링크만 발송한다.
 
+## ⚠️ 레포와 DB가 어긋나 있음 (2026-09-12 확인)
+
+`moasem` 스키마에 테이블 29개가 있는데, 이 레포의 `supabase/migrations/` 에는
+그중 16개분(0001~0007)만 있다. 나머지 13개는 **레포를 거치지 않고 DB에 직접 적용**됐다.
+
+DB에만 적용되어 있고 이 레포에 파일이 없는 마이그레이션 (Supabase 적용 이력 기준):
+
+| 적용 시각 | 이름 |
+|---|---|
+| 2026-09-05 09:55 | `moasem_staff_accounts` |
+| 2026-09-05 10:30 | `moasem_report_resources` |
+| 2026-09-05 11:19 | `moasem_report_alimtalk` |
+| 2026-09-05 11:56 | `moasem_guardian_consent` |
+| 2026-09-05 12:18 | `moasem_consent_ui_english` |
+| 2026-09-05 22:07 | `moasem_student_progress` |
+| 2026-09-05 23:26 | `moasem_free_zoom_link` |
+| 2026-09-06 00:16 | `moasem_learning_operations` |
+| 2026-09-06 02:05 | `moasem_bulk_homework` |
+
+**작업 전 반드시 DB 실제 상태를 조회할 것.** 이 레포의 마이그레이션 파일만 믿으면 안 된다.
+새 작업은 파일과 DB를 함께 맞추고, 위 9건도 언젠가 파일로 복원해 두어야 한다.
+
+## moasem 스키마 테이블 (29개, 2026-09-12)
+
+### 기준 정보
+- `institutions` — 기관. 담당자 정보, 읽기전용 포털 토큰(`portal_token`), 담당자 계정(`manager_user_id`)
+- `instructors` — 강사. 로그인 계정 연결(`user_id`)
+- `programs` — 기관별 위탁 프로그램. 기간·주차수·대면/Zoom 요일·학생 입장코드(`join_code`)
+- `guardians` — 보호자. 연락처와 기본 언어(ko/vi/zh-CN)
+- `students` — 학생. 프로그램·보호자 연결, 학년
+- `staff_accounts` — **관리자/강사 권한.** `auth_user_id` 로 Supabase Auth 연결. auth 쪽 role은 신뢰하지 않고 이 표를 기준으로 삼는다
+
+### 출결·학습
+- `attendance` — 대면/Zoom 출석. 학생·날짜·유형 조합이 유일
+- `learning_logs` — 강사 수동 입력 학습 결과 (푼 문제수·오답수·주간과제·영상)
+- `student_progress_entries` — 상세 진도 기록 (교재·단원·쪽수·배운 것·어려운 점·다음 과제)
+- `student_video_checks` — 보충영상 열람·확인 기록
+- `student_portal_links` — 학생 포털 접근 토큰(해시) 및 만료
+
+### 과제
+- `homework` — 과제 배정과 상태 (배정일·기한·제출·확인)
+- `homework_photos` — 과제 사진. 실제 파일은 Storage
+- `homework_batches` — 과제 일괄 배정 이력
+
+### 진단
+- `diagnostic_papers` — 프로그램별 사전/사후 진단 문제지 (URL·만점)
+- `diagnostic_scores` — 학생별 진단 점수 (사전/사후)
+
+### 오답·보충영상
+- `wrong_types` — 오답 유형 기준정보 (학년·학기·영역·단원, 3개 언어 설명)
+- `supplement_videos` — 보충영상 보관함
+- `wrong_type_videos` — 오답 유형 ↔ 보충영상 연결 (유형별 대표영상 1개)
+- `learning_log_wrong_types` — 학습기록 ↔ 오답 유형 연결
+
+### 보호자 리포트·알림
+- `guardian_reports` — 로그인 없는 링크형 학습 리포트. 토큰과 만료 시각
+- `report_notification_attempts` — 알림톡 발송 시도와 결과. 접수와 도착을 구분하고, 결과 불명 시 자동 재발송하지 않는다
+
+### 법정대리인 동의
+- `consent_documents` — 동의 문서 원문과 번역
+- `guardian_consent_requests` — 동의 요청. 토큰 해시·문서 스냅샷·만료·철회
+- `guardian_consent_records` — 동의 결과. 서명자명·언어·법정대리인 여부. **본인인증이나 자격증명을 의미하지 않는다**
+
+### 미사용 (0007 로 만들었으나 위 표들로 대체됨 — 정리 대상)
+- `consents` — `guardian_consent_*` 3개가 더 완전하다
+- `submissions` — `homework` + `homework_photos` 가 더 완전하다
+- `assessments` — `diagnostic_papers` + `diagnostic_scores` 로 대체
+- `reports` — 프로그램 단위 성과보고서. 아직 쓰는 화면이 없다
+
+### Storage
+- `moasem-submissions` — 비공개 버킷. 10MB, 사진·PDF만. 서버가 발급한 한시적 링크로만 열린다
+
 ## 진행 기록
 - 2026-09-03: 신규 독립 서비스 구조 확정. 기존 학원 시스템과 분리, `moasem_` 전용 데이터 구조 설계 시작.
 - 2026-09-03: aiapp Supabase에 기관·강사·프로그램·보호자·학생 핵심 테이블 적용.
@@ -31,3 +103,6 @@
 - 2026-09-03: 자동채점 전에도 운영 가능한 보호자 리포트 1차 기능 추가. 강사 수동 입력 → 만료형 공개 리포트 링크 생성 구조를 만들고, 향후 MOAKIT 카카오톡 채널 Solapi 알림톡 연동 환경변수 자리를 예약함.
 - 2026-09-03: DB 스키마 분리 완료. `public` 의 `moasem_` 테이블 12개를 `moasem` 스키마로 이동(set schema)하고 접두어 제거. 데이터 0건 상태에서 수행했고 drop 문은 사용하지 않았다. 외래키 15개·인덱스 29개·RLS 설정 모두 보존. 앱 코드 42곳을 새 이름으로 수정.
 - 2026-09-04: Exposed schemas 에 `moasem` 을 추가했다. 대시보드 저장이 반영되지 않아 `alter role authenticator set pgrst.db_schemas` 로 직접 적용했고 값은 `public, graphql_public, moalab, ai_upcycling, moasem` 이다. 플랫폼 설정과 어긋날 수 있으므로 대시보드에서도 한 번 저장해 확인한다.
+- 2026-09-05: 동의·과제제출·진단·성과보고서 테이블 4개와 계정 연결 칸 3개(`instructors.user_id`, `institutions.manager_user_id`, `programs.join_code`) 추가. 비공개 버킷 `moasem-submissions` 생성.
+- 2026-09-12: `public` 스키마 RLS 미적용 테이블 29개 점검 보고서(`SECURITY_RLS_REPORT.md`) 작성. 설정은 변경하지 않았다. `users`(비밀번호 해시·TOTP 비밀키), `sessions`(세션 토큰)이 anon 키로 읽고 쓸 수 있는 상태로 확인됐다.
+- 2026-09-12: 레포와 DB 불일치 확인. `moasem` 테이블이 29개인데 레포에는 16개분만 있다. 위 경고 절 참조.
